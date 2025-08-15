@@ -2,12 +2,8 @@ import connect from '@/lib/mongodb';
 import Post from '@/models/Post';
 import { notFound } from 'next/navigation';
 
-export default async function PostPage({
-                                           params,
-                                       }: {
-    params: Promise<{ id: string }>;
-}) {
-    const { id } = await params;
+export default async function PostPage({ params }: { params: { id: string } }) {
+    const { id } = params;
 
     await connect();
     const post = await Post.findById(id).populate('gallery').lean();
