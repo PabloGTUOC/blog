@@ -1,5 +1,5 @@
 import connect from '@/lib/mongodb';
-import Post from '@/models/Post';
+import Post, { type PostDoc } from '@/models/Post';
 import { notFound } from 'next/navigation';
 
 export default async function PostPage({
@@ -10,8 +10,10 @@ export default async function PostPage({
     const { id } = await params;
 
     await connect();
-    const post = await Post.findById(id).populate('gallery').lean();
-    if (!post) return notFound();
+    const post: PostDoc | null = await Post.findById(id)
+        .populate('gallery')
+        .lean();
+    if (!post || Array.isArray(post)) return notFound();
 
     return (
         <div className="p-4">

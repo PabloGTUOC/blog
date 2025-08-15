@@ -1,6 +1,13 @@
-import { Schema, model, models } from 'mongoose';
+import { Schema, model, models, type ObjectId } from 'mongoose';
 
-const PostSchema = new Schema(
+export interface PostDoc {
+  _id: string;
+  title: string;
+  content: string;
+  gallery?: ObjectId;
+}
+
+const PostSchema = new Schema<PostDoc>(
   {
     title: { type: String, required: true },
     content: { type: String, required: true },
@@ -9,4 +16,4 @@ const PostSchema = new Schema(
   { timestamps: true }
 );
 
-export default models.Post || model('Post', PostSchema);
+export default models.Post || model<PostDoc>('Post', PostSchema);
