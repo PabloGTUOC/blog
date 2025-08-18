@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0",
     "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
     "mongoose": "^8.17.0",
     "next": "15.4.5",
     "react": "19.1.0",
@@ -26,7 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5"
   }
 }

@@ -1,40 +1,55 @@
+// src/app/galleries/[id]/page.tsx
 import connect from '@/lib/mongodb';
 import Gallery from '@/models/Gallery';
 import bcrypt from 'bcryptjs';
 import { notFound } from 'next/navigation';
-export default async function GalleryPage({
-                                              params,
-                                              searchParams,
-                                          }: {
-    params: Promise<{ id: string }>;
-    searchParams: Promise<{ password?: string }>;
-}) {
-    const { id } = await params;
-    const { password = '' } = await searchParams;
 
+type Props = {
+    params: { id: string };
+    searchParams: { password?: string };
+};
+
+export default async function GalleryPage({ params, searchParams }: Props) {
     await connect();
-    const gallery = await Gallery.findById(id).lean();
-    if (!gallery) return notFound();
+    const gallery = await Gallery.findById(params.id).lean();
 
-    const isProtected = !!gallery.passwordHash;
-    const authorized = !isProtected || (await bcrypt.compare(password, gallery.passwordHash));
+    if (!gallery) notFound();
 
-    if (isProtected && !authorized) {
-        return (
-            <form>
-                <input type="password" name="password" placeholder="Password" className="border p-1" />
-                <button type="submit" className="ml-2 border p-1">Enter</button>
-            </form>
-        );
+    const hasPassword = Boolean(gallery.passwordHash);
+    const provided = searchParams.password ?? '';
+
+    if (hasPassword) {
+        const ok = provided && (await bcrypt.compare(provided, gallery.passwordHash));
+        if (!ok) {
+            return (
+                <div className="p-4 space-y-3">
+                    <h1 className="text-xl font-semibold">{gallery.name}</h1>
+                    <p className="text-sm">This gallery is protected.</p>
+                    {/* Simple GET form so `password` appears in the query string */}
+                    <form method="GET" className="flex items-center gap-2">
+                        <input
+                            type="password"
+                            name="password"
+                            placeholder="Password"
+                            className="border p-2"
+                            required
+                        />
+                        <button type="submit" className="border p-2">Enter</button>
+                    </form>
+                </div>
+            );
+        }
     }
+
+    const images: string[] = Array.isArray(gallery.images) ? gallery.images : [];
 
     return (
         <div className="p-4">
-            <h1>{gallery.name}</h1>
-            <div className="grid grid-cols-3 gap-2">
-                {gallery.images?.map((url: string, i: number) => (
+            <h1 className="text-xl font-semibold mb-4">{gallery.name}</h1>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {images.map((url, i) => (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img key={i} src={url} alt={`image-${i}`} />
+                    <img key={i} src={url} alt={`image-${i}`} className="w-full h-auto object-cover" />
                 ))}
             </div>
         </div>
