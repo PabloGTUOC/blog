@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     const q = searchParams.get('q')?.trim();
     const limit = Number(searchParams.get('limit') ?? 100);
 
-    const criteria = q
+    const criteria: any = q
         ? {
             $or: [
                 { name: { $regex: q, $options: 'i' } },
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
         }
         : {};
 
-    const galleries = await Gallery.find(criteria, { name: 1, images: 1, passwordHash: 1, createdAt: 1 })
+    const galleries = await Gallery.find(criteria, { name: 1, images: 1, passwordHash: 1, tags: 1, createdAt: 1 })
         .sort({ createdAt: -1 })
         .limit(limit);
 
@@ -33,6 +33,11 @@ export async function POST(req: Request) {
         data.passwordHash = await bcrypt.hash(data.password, 10);
         delete data.password;
     }
-    const gallery = await Gallery.create(data);
+    const gallery = await Gallery.create({
+        name: data.name,
+        images: Array.isArray(data.images) ? data.images : [],
+        passwordHash: data.passwordHash,
+        tags: Array.isArray(data.tags) ? data.tags : [],
+    });
     return NextResponse.json(gallery, { status: 201 });
 }

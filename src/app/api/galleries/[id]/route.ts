@@ -14,16 +14,12 @@ export async function PUT(req: Request, { params }: Ctx) {
 
     if (typeof body.name === 'string') set.name = body.name;
     if (Array.isArray(body.images)) set.images = body.images;
+    if (Array.isArray(body.tags)) set.tags = body.tags;
 
-    // Update password only if a non-empty string provided
     if (typeof body.password === 'string' && body.password.length > 0) {
         set.passwordHash = await bcrypt.hash(body.password, 10);
     }
-
-    // Explicitly clear password if requested
-    if (body.clearPassword === true) {
-        unset.passwordHash = 1;
-    }
+    if (body.clearPassword === true) unset.passwordHash = 1;
 
     const update: any = {};
     if (Object.keys(set).length) update.$set = set;

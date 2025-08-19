@@ -113,3 +113,95 @@ html, body {
 .retro-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--subt); }
 .retro-title { font-size: 1.5rem; margin-bottom: .5rem; font-family: var(--font-vt323, ui-monospace, monospace); }
 .retro-toolbar { display:flex; align-items:center; gap:.5rem; border-bottom:1px solid var(--border); background:var(--surface); padding:.5rem .75rem; }
+
+/* --- Retro palette (already have base tokens); add vibrant accents --- */
+@theme {
+    --retro-yellow: #ffd166; /* waves */
+    --retro-pink:   #ff4fa3; /* diagonal tint */
+    --retro-cyan:   #2bd9ff; /* diagonal tint */
+    --retro-blue:   #4f9dff; /* spare */
+}
+
+/* Pattern colors per theme */
+:root {
+    --pattern-dot: rgba(0,0,0,0.10);
+    --tint1: rgba(255,79,163,.10);   /* pink */
+    --tint2: rgba(43,217,255,.08);   /* cyan */
+    --wave:  rgba(255,209,102,.20);  /* yellow */
+}
+
+[data-theme="dark"] {
+    --pattern-dot: rgba(255,255,255,0.14);
+    --tint1: rgba(255,79,163,.12);
+    --tint2: rgba(43,217,255,.10);
+    --wave:  rgba(255,209,102,.15);
+}
+
+/* --- Centering wrapper + layered retro background --- */
+.site-bg {
+    min-height: 100svh;           /* mobile-safe viewport */
+    display: grid;
+    place-items: center;
+    background-color: var(--bg);  /* from your theme vars */
+
+    /* Layered background: halftone dots + yellow waves + diagonal tints */
+    background-image:
+            radial-gradient(circle at 1px 1px, var(--pattern-dot) 1px, transparent 1.2px),           /* dots */
+            repeating-linear-gradient(0deg, transparent 0 18px, var(--wave) 18px 20px),              /* waves */
+            linear-gradient(120deg, var(--tint1), transparent 40%),                                  /* pink tint */
+            linear-gradient(300deg, var(--tint2), transparent 40%);                                  /* cyan tint */
+    background-size:
+            20px 20px,     /* dots grid size */
+            100% 100%,     /* waves */
+            100% 100%,     /* tint 1 */
+            100% 100%;     /* tint 2 */
+}
+
+/* --- The centered app container --- */
+.app-frame {
+    width: min(100%, 1000px);
+    margin-inline: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: theme(--radius-retro);
+    box-shadow: theme(--shadow-retro);
+    overflow: clip; /* keeps toolbar borders crisp */
+}
+
+/* (optional) subtle transition */
+* { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+
+/* src/app/globals.css */
+
+/* ... keep your existing theme + palette ... */
+
+.site-bg {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;     /* center horizontally */
+    align-items: flex-start;     /* stick near the top */
+    padding: 24px 16px 40px;     /* top/side/bottom padding */
+    background-color: var(--bg);
+
+    /* keep your layered retro background */
+    background-image:
+            radial-gradient(circle at 1px 1px, var(--pattern-dot) 1px, transparent 1.2px),
+            repeating-linear-gradient(0deg, transparent 0 18px, var(--wave) 18px 20px),
+            linear-gradient(120deg, var(--tint1), transparent 40%),
+            linear-gradient(300deg, var(--tint2), transparent 40%);
+    background-size: 20px 20px, 100% 100%, 100% 100%, 100% 100%;
+}
+
+@media (min-width: 768px) {
+    .site-bg { padding-top: 48px; }   /* a bit more breathing room on desktop */
+}
+
+.app-frame {
+    width: min(100%, 1000px);
+    margin: 0 auto;                  /* horizontal centering */
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: theme(--radius-retro);
+    box-shadow: theme(--shadow-retro);
+    overflow: clip;
+}

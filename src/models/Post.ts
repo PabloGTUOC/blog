@@ -12,6 +12,7 @@ const PostSchema = new Schema<PostDoc>(
     title: { type: String, required: true },
     content: { type: String, required: true },
     gallery: { type: Schema.Types.ObjectId, ref: 'Gallery' },
+    tags: [{ type: Schema.Types.ObjectId, ref: 'Tag', default: [] }]
   },
   { timestamps: true }
 );

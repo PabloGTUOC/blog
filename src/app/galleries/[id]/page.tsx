@@ -4,26 +4,35 @@ import Gallery from '@/models/Gallery';
 import bcrypt from 'bcryptjs';
 import { notFound } from 'next/navigation';
 
-type Props = {
-    params: { id: string };
-    searchParams: { password?: string };
-};
+// In Next 14.2+/15, params & searchParams are Promises in server components.
+type Params = Promise<{ id: string }>;
+type SearchParams = Promise<{ password?: string | string[] }>;
 
-export default async function GalleryPage({ params, searchParams }: Props) {
+export default async function GalleryPage({
+                                              params,
+                                              searchParams,
+                                          }: {
+    params: Params;
+    searchParams: SearchParams;
+}) {
+    const { id } = await params;                // 👈 await params
+    const sp = await searchParams;              // 👈 await searchParams
+    const providedParam = sp.password;
+    const provided = Array.isArray(providedParam) ? providedParam[0] : (providedParam ?? '');
+
     await connect();
-    const gallery = await Gallery.findById(params.id).lean();
 
-    if (!gallery) notFound();
+    const gallery = await Gallery.findById(id).lean();
+    if (!gallery) return notFound();            // 👈 return, don’t just call
 
     const hasPassword = Boolean(gallery.passwordHash);
-    const provided = searchParams.password ?? '';
 
     if (hasPassword) {
         const ok = provided && (await bcrypt.compare(provided, gallery.passwordHash));
         if (!ok) {
             return (
                 <div className="p-4 space-y-3">
-                    <h1 className="text-xl font-semibold">{gallery.name}</h1>
+                    <h1 className="retro-title">{gallery.name}</h1>
                     <p className="text-sm">This gallery is protected.</p>
                     {/* Simple GET form so `password` appears in the query string */}
                     <form method="GET" className="flex items-center gap-2">
@@ -31,10 +40,10 @@ export default async function GalleryPage({ params, searchParams }: Props) {
                             type="password"
                             name="password"
                             placeholder="Password"
-                            className="border p-2"
+                            className="retro-input"
                             required
                         />
-                        <button type="submit" className="border p-2">Enter</button>
+                        <button type="submit" className="retro-btn">Enter</button>
                     </form>
                 </div>
             );
@@ -45,7 +54,7 @@ export default async function GalleryPage({ params, searchParams }: Props) {
 
     return (
         <div className="p-4">
-            <h1 className="text-xl font-semibold mb-4">{gallery.name}</h1>
+            <h1 className="retro-title mb-4">{gallery.name}</h1>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {images.map((url, i) => (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -55,4 +64,3 @@ export default async function GalleryPage({ params, searchParams }: Props) {
         </div>
     );
 }
-
