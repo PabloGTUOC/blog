@@ -205,3 +205,61 @@ html, body {
     box-shadow: theme(--shadow-retro);
     overflow: clip;
 }
+
+/* Bigger, catchy post titles (auto scales) */
+.post-title {
+    font-size: clamp(2.25rem, 6vw, 3.75rem); /* ~36px → 60px */
+    letter-spacing: -0.01em;
+}
+
+/* Nicer reading rhythm */
+.prose-retro {
+    line-height: 1.7;
+    font-size: 1rem;
+}
+@media (min-width: 768px) {
+    .prose-retro { font-size: 1.05rem; }
+}
+.prose-retro p { margin: 0 0 1rem; }
+.prose-retro a { color: var(--accent); text-decoration: underline; }
+.prose-retro ul, .prose-retro ol { padding-left: 1.25rem; margin: 0 0 1rem; }
+.prose-retro h2 { font-family: var(--font-vt323), monospace; font-size: 1.75rem; margin: 1.2rem 0 .5rem; }
+.prose-retro h3 { font-family: var(--font-vt323), monospace; font-size: 1.35rem; margin: 1rem 0 .4rem; }
+
+/* Retro tag chip (consistent with your style) */
+.retro-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid;
+    border-radius: 3px;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.85);
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+/* Optional: beefier card border/shadow for posts */
+.post-card {
+    border: 1px solid var(--border);
+    box-shadow: 6px 6px 0 rgba(0,0,0,0.9);
+    background: var(--surface);
+}
+
+/* Use the same bold style for any page title (galleries included) */
+.page-title {
+    font-family: var(--font-vt323), monospace;
+    font-size: clamp(2.25rem, 6vw, 3.75rem);
+    letter-spacing: -0.01em;
+}
+
+/* Retro card styling for gallery pages */
+.gallery-card {
+    border: 1px solid var(--border);
+    box-shadow: 6px 6px 0 rgba(0,0,0,0.9);
+    background: var(--surface);
+}
+
+.gallery-subtitle {
+    font-family: var(--font-vt323), monospace;
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
+    color: var(--subt);
+}

@@ -21,6 +21,20 @@ export async function PUT(req: Request, { params }: Ctx) {
     }
     if (body.clearPassword === true) unset.passwordHash = 1;
 
+    // NEW: month/year updates (pass numbers; omit to keep unchanged)
+    if (Number.isInteger(body.eventMonth)) {
+        const em = Number(body.eventMonth);
+        if (em >= 1 && em <= 12) set.eventMonth = em;
+    }
+    if (Number.isInteger(body.eventYear)) {
+        const ey = Number(body.eventYear);
+        if (ey >= 1900 && ey <= 3000) set.eventYear = ey;
+    }
+    if (body.clearEvent === true) {
+        unset.eventMonth = 1;
+        unset.eventYear = 1;
+    }
+
     const update: any = {};
     if (Object.keys(set).length) update.$set = set;
     if (Object.keys(unset).length) update.$unset = unset;

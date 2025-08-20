@@ -1,55 +1,156 @@
-// src/app/blog/[id]/page.tsx
 import connect from "@/lib/mongodb";
 import Post from "@/models/Post";
-import "@/models/Gallery";
+import "@/models/Gallery"; // for populate
+import "@/models/Tag";     // for populate
 import { Types } from "mongoose";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Card } from "@/components/ui/Card";
 
 type Params = Promise<{ id: string }>;
+type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 type LeanGallery = { _id: Types.ObjectId; name: string };
 type LeanPost = {
     _id: Types.ObjectId;
     title: string;
     content: string;
     gallery?: Types.ObjectId | LeanGallery | null;
+    tags?: (Types.ObjectId | LeanTag)[];
+    createdAt?: Date;
 };
 
+// Render markdown with links as <a> tags
+function renderWithLinks(text: string): React.ReactNode {
+    const nodes: React.ReactNode[] = [];
+    const urlRe = /\bhttps?:\/\/[^\s<>()]+/gi; // simple http/https matcher
+    let last = 0;
+    for (const match of text.matchAll(urlRe)) {
+        const start = match.index ?? 0;
+        const end = start + match[0].length;
+        if (start > last) nodes.push(text.slice(last, start));       // plain text chunk
+        const href = match[0];
+        nodes.push(
+            <a
+                key={`${start}-${end}`}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                {href}
+            </a>
+        );
+        last = end;
+    }
+    if (last < text.length) nodes.push(text.slice(last));
+    return <>{nodes}</>;
+}
+
+function pickTextColor(hex?: string) {
+    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "#000";
+    const h = hex.replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b; // luminance
+    return L > 0.55 ? "#000" : "#fff";
+}
+
+function hashString(s: string) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+}
+
 export default async function PostPage({ params }: { params: Params }) {
-    const { id } = await params; // 👈 await the params
+    const { id } = await params;
 
     await connect();
 
     const post = await Post.findById(id)
+        .select("title content gallery tags createdAt")
         .populate("gallery", "name")
+        .populate("tags", "name color")
         .lean<LeanPost>();
 
     if (!post) return notFound();
 
-    const isPopulated = (g: LeanPost["gallery"]): g is LeanGallery =>
-        !!g && typeof g === "object" && "name" in g;
+    // derive gallery refs safely
+    const gallery =
+        post.gallery && typeof post.gallery === "object" ? (post.gallery as LeanGallery) : null;
+    const galleryId = gallery?._id?.toString?.();
+    const galleryName = gallery?.name ?? null;
 
-    const galleryId = post.gallery
-        ? isPopulated(post.gallery)
-            ? post.gallery._id.toString()
-            : post.gallery.toString()
-        : null;
+    // tags normalized
+    const tags =
+        Array.isArray(post.tags)
+            ? (post.tags
+                .map((t) =>
+                    typeof t === "object"
+                        ? { id: t._id.toString(), name: t.name, color: t.color }
+                        : null
+                )
+                .filter(Boolean) as { id: string; name: string; color?: string }[])
+            : [];
 
-    const galleryName = isPopulated(post.gallery) ? post.gallery.name : null;
+    // catchy accent: prefer first tag's color; else pick from retro palette by id hash
+    const palette = ["#ff4fa3", "#2bd9ff", "#ffd166", "#4f9dff"];
+    const accentHex = tags[0]?.color || palette[hashString(id) % palette.length];
+    const titleShadow = "3px 3px 0 rgba(0,0,0,.8)";
+
+    const created =
+        post.createdAt ? new Date(post.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : undefined;
 
     return (
-        <div className="p-4 space-y-3">
-            <h1 className="retro-title">{post.title}</h1>
-            <div className="retro-card p-3 whitespace-pre-wrap">{post.content}</div>
+        <div className="p-4">
+            <Card className="p-0 overflow-hidden post-card">
+                {/* Header */}
+                <header className="px-4 md:px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+                    <h1
+                        className="post-title font-[var(--font-vt323)] leading-none tracking-tight"
+                        style={{
+                            color: accentHex,
+                            textShadow: titleShadow,
+                        }}
+                    >
+                        {post.title}
+                    </h1>
 
-            {galleryId && (
-                <div className="text-sm">
-                    <span className="retro-label mr-2">Gallery</span>
-                    <Link href={`/galleries/${galleryId}`} className="text-[var(--accent)] underline">
-                        {galleryName ?? "View gallery"}
-                    </Link>
-                </div>
-            )}
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--subt)]">
+                        {created && <span className="retro-label">{created}</span>}
+                        {galleryId && (
+                            <span>
+                <span className="retro-label mr-1">Gallery:</span>
+                <Link href={`/galleries/${galleryId}`} className="text-[var(--accent)] underline">
+                  {galleryName ?? "View gallery"}
+                </Link>
+              </span>
+                        )}
+                        {tags.length > 0 && (
+                            <span className="flex flex-wrap gap-1">
+                {tags.map((t) => (
+                    <span
+                        key={t.id}
+                        className="retro-chip"
+                        style={{
+                            backgroundColor: t.color || "var(--surface)",
+                            color: pickTextColor(t.color),
+                            borderColor: "var(--border)",
+                        }}
+                        title={t.name}
+                    >
+                    {t.name}
+                  </span>
+                ))}
+              </span>
+                        )}
+                    </div>
+                </header>
+
+                {/* Body */}
+                <article className="prose-retro p-4 md:p-6 whitespace-pre-wrap">
+                    {renderWithLinks(post.content)}
+                </article>
+            </Card>
         </div>
     );
 }

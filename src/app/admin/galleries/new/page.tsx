@@ -7,13 +7,25 @@ import { Card } from "@/components/ui/Card";
 
 type TagRec = { _id: string; name: string };
 
+const MONTHS = [
+    { v: 1,  n: "Jan" }, { v: 2,  n: "Feb" }, { v: 3,  n: "Mar" },
+    { v: 4,  n: "Apr" }, { v: 5,  n: "May" }, { v: 6,  n: "Jun" },
+    { v: 7,  n: "Jul" }, { v: 8,  n: "Aug" }, { v: 9,  n: "Sep" },
+    { v: 10, n: "Oct" }, { v: 11, n: "Nov" }, { v: 12, n: "Dec" },
+];
+
 export default function CreateGalleryPage() {
     const [allTags, setAllTags] = useState<TagRec[]>([]);
     const [name, setName] = useState("");
     const [images, setImages] = useState("");
     const [password, setPassword] = useState("");
+
     const [tags, setTags] = useState<string[]>([]);
     const [tagChoice, setTagChoice] = useState("");
+
+    // NEW: month / year
+    const [eventMonth, setEventMonth] = useState<number | "">("");
+    const [eventYear, setEventYear] = useState<number | "">("");
 
     useEffect(() => {
         (async () => {
@@ -40,9 +52,12 @@ export default function CreateGalleryPage() {
                 images: images.split(",").map((s) => s.trim()).filter(Boolean),
                 password: password || undefined,
                 tags,
+                eventMonth: eventMonth === "" ? undefined : eventMonth,
+                eventYear: eventYear === "" ? undefined : eventYear,
             }),
         });
         setName(""); setImages(""); setPassword(""); setTags([]);
+        setEventMonth(""); setEventYear("");
         alert("Gallery created");
     };
 
@@ -55,20 +70,43 @@ export default function CreateGalleryPage() {
                     <Input placeholder="Image URLs comma separated" value={images} onChange={(e) => setImages(e.target.value)} />
                     <Input type="password" placeholder="Password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} />
 
-                    {/* Tag picker */}
+                    {/* Month / Year */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <div className="retro-label mb-1">Month (optional)</div>
+                            <select
+                                className="retro-input"
+                                value={eventMonth === "" ? "" : String(eventMonth)}
+                                onChange={(e) => setEventMonth(e.target.value ? Number(e.target.value) : "")}
+                            >
+                                <option value="">—</option>
+                                {MONTHS.map(m => <option key={m.v} value={m.v}>{m.n}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <div className="retro-label mb-1">Year (optional)</div>
+                            <Input
+                                type="number"
+                                min={1900}
+                                max={3000}
+                                placeholder="YYYY"
+                                value={eventYear === "" ? "" : String(eventYear)}
+                                onChange={(e) => setEventYear(e.target.value ? Number(e.target.value) : "")}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Tags picker (one at a time) */}
                     {allTags.length > 0 ? (
                         <div>
                             <div className="retro-label mb-1">Tags</div>
                             <div className="flex items-center gap-2">
                                 <select className="retro-input" value={tagChoice} onChange={(e) => setTagChoice(e.target.value)}>
                                     <option value="">Choose a tag…</option>
-                                    {allTags.map((t) => (
-                                        <option key={t._id} value={t._id}>{t.name}</option>
-                                    ))}
+                                    {allTags.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
                                 </select>
                                 <Button type="button" onClick={addTag}>Add</Button>
                             </div>
-
                             {tags.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-2">
                                     {tags.map((id) => {
@@ -82,14 +120,9 @@ export default function CreateGalleryPage() {
                                     })}
                                 </div>
                             )}
-                            <div className="text-xs text-[var(--subt)] mt-1">
-                                Pick one, click <em>Add</em>. Repeat to attach multiple tags.
-                            </div>
                         </div>
                     ) : (
-                        <div className="text-xs text-[var(--subt)]">
-                            No tags yet — create them in <span className="underline">Manage Tags</span>.
-                        </div>
+                        <div className="text-xs text-[var(--subt)]">No tags yet — create them in <span className="underline">Manage Tags</span>.</div>
                     )}
 
                     <Button variant="primary" type="submit">Save Gallery</Button>

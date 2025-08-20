@@ -19,7 +19,10 @@ export async function GET(req: Request) {
         }
         : {};
 
-    const galleries = await Gallery.find(criteria, { name: 1, images: 1, passwordHash: 1, tags: 1, createdAt: 1 })
+    const galleries = await Gallery.find(
+        criteria,
+        { name: 1, images: 1, passwordHash: 1, tags: 1, createdAt: 1, eventMonth: 1, eventYear: 1 }
+    )
         .sort({ createdAt: -1 })
         .limit(limit);
 
@@ -29,15 +32,22 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     await connect();
     const data = await req.json();
-    if (data.password) {
-        data.passwordHash = await bcrypt.hash(data.password, 10);
-        delete data.password;
-    }
-    const gallery = await Gallery.create({
+
+    const doc: any = {
         name: data.name,
         images: Array.isArray(data.images) ? data.images : [],
-        passwordHash: data.passwordHash,
         tags: Array.isArray(data.tags) ? data.tags : [],
-    });
+    };
+
+    if (data.password) {
+        doc.passwordHash = await bcrypt.hash(data.password, 10);
+    }
+
+    const em = Number(data.eventMonth);
+    const ey = Number(data.eventYear);
+    if (Number.isInteger(em) && em >= 1 && em <= 12) doc.eventMonth = em;
+    if (Number.isInteger(ey) && ey >= 1900 && ey <= 3000) doc.eventYear = ey;
+
+    const gallery = await Gallery.create(doc);
     return NextResponse.json(gallery, { status: 201 });
 }

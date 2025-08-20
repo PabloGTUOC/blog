@@ -3,7 +3,8 @@ import Link from "next/link";
 import connect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import Gallery from "@/models/Gallery";
-import "@/models/Tag";           // register Tag for populate
+import "@/models/Tag";
+import Tag from "@/models/Tag";
 import Carousel from "@/components/Carousel";
 import { Card } from "@/components/ui/Card";
 import { Types } from "mongoose";
@@ -71,9 +72,13 @@ export default async function Home() {
         return { id, title: p.title ?? "(untitled)", href: `/blog/${id}`, thumb, tags };
     });
 
+    // Get the 'family' tag id (if it exists)
+    const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id").lean<{ _id: Types.ObjectId } | null>();
+    const familyId = familyTag?._id;
+
     // -------- Galleries (newest first) --------
     const rawGalleries = await Gallery.find(
-        {},
+        familyId ? { tags: { $nin: [familyId] } } : {}, // exclude family if tag exists
         { name: 1, images: 1, tags: 1, createdAt: 1 }
     )
         .sort({ createdAt: -1 })

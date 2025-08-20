@@ -5,8 +5,6 @@ import Tag from "@/models/Tag";
 import "@/models/Tag";
 import { Card } from "@/components/ui/Card";
 import { Types } from "mongoose";
-import TagFilterDropdown from "@/components/TagFilterDropdown";
-
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
@@ -34,45 +32,40 @@ function formatEventDate(m?: number, y?: number) {
     if (y) return String(y);
     return "";
 }
-function toArray(v?: string | string[]) {
-    return Array.isArray(v) ? v : v ? [v] : [];
-}
 
-export default async function GalleriesIndex({ searchParams }: { searchParams: SearchParams }) {
+export default async function FamilyPage({ searchParams }: { searchParams: SearchParams }) {
     const sp = await searchParams;
     await connect();
 
-    // Find the family tag id (if it exists)
-    const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id name").lean<{ _id: Types.ObjectId } | null>();
-    const familyId = familyTag?._id?.toString();
+    const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id name").lean<{ _id: Types.ObjectId; name: string } | null>();
+    const familyId = familyTag?._id;
 
-    // Parse filters
+    // If there's no family tag yet, show hint
+    if (!familyId) {
+        return (
+            <div className="space-y-4">
+                <h1 className="retro-title">Family</h1>
+                <div className="text-sm text-[var(--subt)]">Create a tag named “family” and assign it to galleries to see them here.</div>
+            </div>
+        );
+    }
+
+    // Filters
     const m = Number(sp.m ?? "");
     const y = Number(sp.y ?? "");
-    const tagFilterIds = toArray(sp.t).filter(Boolean); // array of tag ids (strings)
     const validMonth = Number.isInteger(m) && m >= 1 && m <= 12 ? m : undefined;
     const validYear = Number.isInteger(y) && y >= 1900 && y <= 3000 ? y : undefined;
 
-    // Build criteria: exclude 'family'; include tag filters if provided
-    const and: any[] = [];
+    const and: any[] = [{ tags: familyId }];
     if (validMonth) and.push({ eventMonth: validMonth });
     if (validYear) and.push({ eventYear: validYear });
-    if (familyId) and.push({ tags: { $nin: [familyId] } });
-    if (tagFilterIds.length > 0) and.push({ tags: { $all: tagFilterIds } });
-    const criteria = and.length ? { $and: and } : {};
+    const criteria = { $and: and };
 
-    // Options for tag filter: all tags except 'family'
-    const tagOptions = await Tag.find(familyId ? { _id: { $ne: familyId } } : {}, "name color")
-        .sort({ name: 1 })
-        .lean<{ _id: Types.ObjectId; name: string; color?: string }[]>();
-
-    // Distinct years present (for this section that excludes family)
-    const yearCriteria = familyId ? { tags: { $nin: [familyId] } } : {};
-    const years = (await Gallery.distinct("eventYear", yearCriteria))
+    // Distinct years present (within family)
+    const years = (await Gallery.distinct("eventYear", { tags: familyId }))
         .filter((v: number | null) => typeof v === "number")
         .sort((a: number, b: number) => b - a) as number[];
 
-    // Query galleries
     const raw = await Gallery.find(
         criteria,
         { name: 1, images: 1, tags: 1, eventMonth: 1, eventYear: 1, createdAt: 1 }
@@ -96,10 +89,10 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
 
     return (
         <div className="space-y-4">
-            <h1 className="retro-title">Galleries</h1>
+            <h1 className="retro-title">Family</h1>
 
-            {/* Filter bar */}
-            <form method="GET" className="grid gap-2 md:grid-cols-[150px_150px_1fr_auto_auto] items-end">
+            {/* Filter bar (no tag selector here) */}
+            <form method="GET" className="grid gap-2 md:grid-cols-[150px_150px_auto_auto] items-end">
                 <div>
                     <div className="retro-label mb-1">Month</div>
                     <select name="m" className="retro-input" defaultValue={validMonth ? String(validMonth) : ""}>
@@ -118,19 +111,13 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
                         ))}
                     </select>
                 </div>
-                <div>
-                    <TagFilterDropdown
-                        options={tagOptions.map(t => ({ id: t._id.toString(), name: t.name, color: t.color }))}
-                        initialSelected={tagFilterIds}
-                    />
-                </div>
                 <button type="submit" className="retro-btn">Filter</button>
-                <a href="/galleries" className="retro-btn">Clear</a>
+                <a href="/family" className="retro-btn">Clear</a>
             </form>
 
-            {/* Grid */}
+            {/* Grid (no carousel) */}
             {cards.length === 0 ? (
-                <div className="text-sm text-[var(--subt)]">No galleries match your filters.</div>
+                <div className="text-sm text-[var(--subt)]">No family galleries match your filters.</div>
             ) : (
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {cards.map((g) => (
@@ -143,7 +130,6 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
                                     ) : (
                                         <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)" }} />
                                     )}
-                                    {/* small chips */}
                                     {g.tags.length > 0 && (
                                         <div className="absolute left-1 bottom-1 flex flex-wrap gap-1">
                                             {g.tags.slice(0, 3).map((t) => (

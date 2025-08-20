@@ -37,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 {/* Top menu / toolbar */}
                 <nav className="retro-toolbar">
                     <Link href="/" className="retro-btn" title="Home">Home</Link>
+                    <Link href="/family" className="retro-btn">Family</Link>
                     <Link href="/galleries" className="retro-btn">Galleries</Link>
                     <Link href="/blog" className="retro-btn">Blog</Link>
                     <Link href="/admin" className="retro-btn">Admin</Link>
