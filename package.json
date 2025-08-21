@@ -10,6 +10,7 @@
     "test": "tsx --test test/basic.test.ts test/posts.api.test.ts"
   },
   "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.53.0",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
