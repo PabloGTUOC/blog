@@ -15,6 +15,7 @@ const NAV = [
     { href: "/admin/galleries/new", label: "Create Gallery" },
     { href: "/admin/galleries", label: "Manage Galleries" },
     { href: "/admin/tags", label: "Manage Tags" },
+    { href: "/admin/users", label: "User Management" },
 ];
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
