@@ -1,10 +1,16 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
+import FamilyUser from "@/models/FamilyUser";
 import "@/models/Tag";
 import { Card } from "@/components/ui/Card";
+import FamilyLogin from "@/components/FamilyLogin";
 import { Types } from "mongoose";
+
+export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
@@ -34,8 +40,47 @@ function formatEventDate(m?: number, y?: number) {
 }
 
 export default async function FamilyPage({ searchParams }: { searchParams: SearchParams }) {
-    const sp = await searchParams;
+    const supabase = createServerComponentClient({ cookies });
+    const {
+        data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+        return <FamilyLogin />;
+    }
+
     await connect();
+
+    const dbUser = await FamilyUser.findOneAndUpdate(
+        { email: session.user.email },
+        {
+            $setOnInsert: {
+                email: session.user.email,
+                name: session.user.user_metadata?.full_name || session.user.email,
+                status: "pending",
+            },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    if (dbUser.status === "pending") {
+        return (
+            <div className="space-y-4">
+                <h1 className="retro-title">Family</h1>
+                <div className="text-sm text-[var(--subt)]">Your access request is pending approval.</div>
+            </div>
+        );
+    }
+
+    if (dbUser.status === "blocked") {
+        return (
+            <div className="space-y-4">
+                <h1 className="retro-title">Family</h1>
+                <div className="text-sm text-[var(--subt)]">Your access has been blocked.</div>
+            </div>
+        );
+    }
+
+    const sp = await searchParams;
 
     const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id name").lean<{ _id: Types.ObjectId; name: string } | null>();
     const familyId = familyTag?._id;
@@ -56,10 +101,10 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
     const validMonth = Number.isInteger(m) && m >= 1 && m <= 12 ? m : undefined;
     const validYear = Number.isInteger(y) && y >= 1900 && y <= 3000 ? y : undefined;
 
-    const and: any[] = [{ tags: familyId }];
-    if (validMonth) and.push({ eventMonth: validMonth });
-    if (validYear) and.push({ eventYear: validYear });
-    const criteria = { $and: and };
+    const filters: Record<string, unknown>[] = [{ tags: familyId }];
+    if (validMonth) filters.push({ eventMonth: validMonth });
+    if (validYear) filters.push({ eventYear: validYear });
+    const criteria = { $and: filters };
 
     // Distinct years present (within family)
     const years = (await Gallery.distinct("eventYear", { tags: familyId }))
