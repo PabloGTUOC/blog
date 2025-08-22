@@ -1,23 +1,17 @@
-import { Schema, model, models } from 'mongoose';
+import { Schema, model, models } from "mongoose";
 
-export interface FamilyUserDoc {
-  _id: string;
-  email: string;
-  name?: string;
-  status: 'pending' | 'approved' | 'blocked';
-}
-
-const FamilyUserSchema = new Schema<FamilyUserDoc>(
-  {
-    email: { type: String, required: true, unique: true },
-    name: { type: String },
-    status: {
-      type: String,
-      enum: ['pending', 'approved', 'blocked'],
-      default: 'pending',
+const FamilyUserSchema = new Schema(
+    {
+        email: { type: String, required: true, unique: true, index: true },
+        name: String,
+        status: {
+            type: String,
+            enum: ["pending", "approved", "blocked"],
+            default: "pending",
+            index: true,
+        },
     },
-  },
-  { timestamps: true }
+    { timestamps: true }
 );
 
-export default models.FamilyUser || model<FamilyUserDoc>('FamilyUser', FamilyUserSchema);
+export default models.FamilyUser || model("FamilyUser", FamilyUserSchema);

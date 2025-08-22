@@ -1,6 +1,6 @@
+// src/app/family/page.tsx
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@/utils/supabase/server";
 import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
@@ -16,9 +16,9 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 
 const MONTHS = [
-    { v: 1,  n: "Jan" }, { v: 2,  n: "Feb" }, { v: 3,  n: "Mar" },
-    { v: 4,  n: "Apr" }, { v: 5,  n: "May" }, { v: 6,  n: "Jun" },
-    { v: 7,  n: "Jul" }, { v: 8,  n: "Aug" }, { v: 9,  n: "Sep" },
+    { v: 1, n: "Jan" }, { v: 2, n: "Feb" }, { v: 3, n: "Mar" },
+    { v: 4, n: "Apr" }, { v: 5, n: "May" }, { v: 6, n: "Jun" },
+    { v: 7, n: "Jul" }, { v: 8, n: "Aug" }, { v: 9, n: "Sep" },
     { v: 10, n: "Oct" }, { v: 11, n: "Nov" }, { v: 12, n: "Dec" },
 ];
 
@@ -40,33 +40,28 @@ function formatEventDate(m?: number, y?: number) {
 }
 
 export default async function FamilyPage({ searchParams }: { searchParams: SearchParams }) {
-    const supabase = createServerComponentClient({ cookies });
-    const {
-        data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-        return <FamilyLogin />;
-    }
+    // ✅ use SSR client + getUser (session can be null)
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // If not signed in, show the Google login prompt
+    if (!user?.email) return <FamilyLogin />;
 
     await connect();
 
+    // Upsert a FamilyUser and enforce defaults
     const dbUser = await FamilyUser.findOneAndUpdate(
-        { email: session.user.email },
+        { email: user.email },
         {
-            $setOnInsert: { name: session.user.user_metadata?.full_name || session.user.email },
+            $setOnInsert: {
+                name: (user.user_metadata as any)?.full_name || user.email,
+                status: "pending",
+            },
         },
-        { upsert: true, new: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
 
-    if (dbUser.status === "pending") {
-        return (
-            <div className="space-y-4">
-                <h1 className="retro-title">Family</h1>
-                <div className="text-sm text-[var(--subt)]">Your access request is pending approval.</div>
-            </div>
-        );
-    }
-
+    // Gate: only approved can proceed
     if (dbUser.status === "blocked") {
         return (
             <div className="space-y-4">
@@ -75,18 +70,28 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
             </div>
         );
     }
+    if (dbUser.status !== "approved") {
+        return (
+            <div className="space-y-4">
+                <h1 className="retro-title">Family</h1>
+                <div className="text-sm text-[var(--subt)]">Your access request is pending approval.</div>
+            </div>
+        );
+    }
 
     const sp = await searchParams;
 
-    const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id name").lean<{ _id: Types.ObjectId; name: string } | null>();
+    const familyTag = await Tag.findOne({ name: /^family$/i })
+        .select("_id name")
+        .lean<{ _id: Types.ObjectId; name: string } | null>();
     const familyId = familyTag?._id;
-
-    // If there's no family tag yet, show hint
     if (!familyId) {
         return (
             <div className="space-y-4">
                 <h1 className="retro-title">Family</h1>
-                <div className="text-sm text-[var(--subt)]">Create a tag named “family” and assign it to galleries to see them here.</div>
+                <div className="text-sm text-[var(--subt)]">
+                    Create a tag named “family” and assign it to galleries to see them here.
+                </div>
             </div>
         );
     }
@@ -102,7 +107,6 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
     if (validYear) filters.push({ eventYear: validYear });
     const criteria = { $and: filters };
 
-    // Distinct years present (within family)
     const years = (await Gallery.distinct("eventYear", { tags: familyId }))
         .filter((v: number | null) => typeof v === "number")
         .sort((a: number, b: number) => b - a) as number[];
@@ -132,7 +136,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
         <div className="space-y-4">
             <h1 className="retro-title">Family</h1>
 
-            {/* Filter bar (no tag selector here) */}
+            {/* Filter bar */}
             <form method="GET" className="grid gap-2 md:grid-cols-[150px_150px_auto_auto] items-end">
                 <div>
                     <div className="retro-label mb-1">Month</div>
@@ -156,7 +160,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
                 <a href="/family" className="retro-btn">Clear</a>
             </form>
 
-            {/* Grid (no carousel) */}
+            {/* Grid */}
             {cards.length === 0 ? (
                 <div className="text-sm text-[var(--subt)]">No family galleries match your filters.</div>
             ) : (
@@ -170,30 +174,6 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
                                         <img src={g.thumb} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
                                     ) : (
                                         <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)" }} />
-                                    )}
-                                    {g.tags.length > 0 && (
-                                        <div className="absolute left-1 bottom-1 flex flex-wrap gap-1">
-                                            {g.tags.slice(0, 3).map((t) => (
-                                                <span
-                                                    key={t.id}
-                                                    className="px-2 py-0.5 text-[10px] leading-tight border rounded-[2px]"
-                                                    style={{
-                                                        backgroundColor: t.color || "var(--surface)",
-                                                        color: pickTextColor(t.color),
-                                                        borderColor: "var(--border)",
-                                                        boxShadow: "2px 2px 0 0 rgba(0,0,0,0.85)",
-                                                    }}
-                                                    title={t.name}
-                                                >
-                          {t.name}
-                        </span>
-                                            ))}
-                                            {g.tags.length > 3 && (
-                                                <span className="px-2 py-0.5 text-[10px] leading-tight border rounded-[2px]" style={{ backgroundColor: "var(--surface)", color: "var(--text)", borderColor: "var(--border)", boxShadow: "2px 2px 0 0 rgba(0,0,0,0.85)" }}>
-                          +{g.tags.length - 3}
-                        </span>
-                                            )}
-                                        </div>
                                     )}
                                 </div>
                                 <div className="p-3">
