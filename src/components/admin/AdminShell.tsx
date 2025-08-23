@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import type { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
@@ -19,16 +17,25 @@ const NAV = [
 ];
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
-    const [session, setSession] = useState<Session | null>(null);
+    const [authed, setAuthed] = useState(false);
+    const [form, setForm] = useState({ username: "", password: "" });
     const pathname = usePathname();
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }) => setSession(data.session));
-        const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-        return () => listener.subscription.unsubscribe();
+        fetch("/api/admin/me").then((res) => setAuthed(res.ok));
     }, []);
 
-    if (!session) {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(form),
+        });
+        setAuthed(res.ok);
+    };
+
+    if (!authed) {
         return (
             <div className="p-6 max-w-lg mx-auto">
                 <Card className="space-y-4 p-4">
@@ -36,24 +43,33 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                     <p className="text-sm text-[var(--subt)]">
                         Sign in to access the admin tools.
                     </p>
-                    <Button
-                        onClick={() =>
-                            supabase.auth.signInWithOAuth({
-                                provider: "google",
-                                options: {
-                                    redirectTo: typeof window !== "undefined" ? `${window.location.origin}/admin` : undefined,
-                                    queryParams: { access_type: "offline", prompt: "consent" },
-                                },
-                            })
-                        }
-                        variant="primary"
-                    >
-                        Sign in with Google
-                    </Button>
+                    <form className="space-y-2" onSubmit={handleSubmit}>
+                        <input
+                            className="retro-input w-full"
+                            placeholder="Username"
+                            value={form.username}
+                            onChange={(e) => setForm({ ...form, username: e.target.value })}
+                        />
+                        <input
+                            type="password"
+                            className="retro-input w-full"
+                            placeholder="Password"
+                            value={form.password}
+                            onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        />
+                        <Button type="submit" variant="primary" className="w-full">
+                            Sign in
+                        </Button>
+                    </form>
                 </Card>
             </div>
         );
     }
+
+    const signOut = async () => {
+        await fetch("/api/admin/logout", { method: "POST" });
+        setAuthed(false);
+    };
 
     return (
         <div className="grid md:grid-cols-[220px_minmax(0,1fr)] gap-4 p-4">
@@ -75,7 +91,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                     })}
                 </nav>
                 <div className="mt-3">
-                    <Button onClick={() => supabase.auth.signOut()}>Sign out</Button>
+                    <Button onClick={signOut}>Sign out</Button>
                 </div>
             </Card>
 
