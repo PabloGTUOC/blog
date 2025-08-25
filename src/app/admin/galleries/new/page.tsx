@@ -19,7 +19,7 @@ const MONTHS = [
 export default function CreateGalleryPage() {
     const [allTags, setAllTags] = useState<TagRec[]>([]);
     const [name, setName] = useState("");
-    const [images, setImages] = useState("");
+    const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [password, setPassword] = useState("");
 
     const [tags, setTags] = useState<string[]>([]);
@@ -51,14 +51,14 @@ export default function CreateGalleryPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 name,
-                images: images.split(",").map((s) => s.trim()).filter(Boolean),
+                images: imageUrls,
                 password: password || undefined,
                 tags,
                 eventMonth: eventMonth === "" ? undefined : eventMonth,
                 eventYear: eventYear === "" ? undefined : eventYear,
             }),
         });
-        setName(""); setImages(""); setPassword(""); setTags([]);
+        setName(""); setImageUrls([]); setPassword(""); setTags([]);
         setEventMonth(""); setEventYear("");
         alert("Gallery created");
     };
@@ -70,13 +70,20 @@ export default function CreateGalleryPage() {
                 <form onSubmit={submit} className="grid gap-2">
                     <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
                     <Uploader
-                        onUploaded={(urls) =>
-                            setGallery((g) => ({
-                                ...g,
-                                images: [g.images, urls.join(", ")].filter(Boolean).join(", "),
-                            }))
-                        }
+                        onUploaded={(urls) => setImageUrls((prev) => [...prev, ...urls])}
                     />
+                    {imageUrls.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {imageUrls.map((url, i) => (
+                                <img
+                                    key={i}
+                                    src={url}
+                                    alt="Preview"
+                                    className="h-20 w-20 object-cover rounded"
+                                />
+                            ))}
+                        </div>
+                    )}
                     <Input type="password" placeholder="Password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} />
 
                     {/* Month / Year */}

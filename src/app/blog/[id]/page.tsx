@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 
 type Params = Promise<{ id: string }>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
-type LeanGallery = { _id: Types.ObjectId; name: string };
+type LeanGallery = { _id: Types.ObjectId; name: string; images: string[] };
 type LeanPost = {
     _id: Types.ObjectId;
     title: string;
@@ -68,7 +68,7 @@ export default async function PostPage({ params }: { params: Params }) {
 
     const post = await Post.findById(id)
         .select("title content gallery tags createdAt")
-        .populate("gallery", "name")
+        .populate("gallery", "name images")
         .populate("tags", "name color")
         .lean<LeanPost>();
 
@@ -145,6 +145,25 @@ export default async function PostPage({ params }: { params: Params }) {
                         )}
                     </div>
                 </header>
+
+                {galleryId && Array.isArray(gallery?.images) && gallery.images.length > 0 && (
+                    <Link
+                        href={`/galleries/${galleryId}`}
+                        className="block border-b"
+                        style={{ borderColor: "var(--border)" }}
+                    >
+                        <div className="flex gap-1 p-2 overflow-x-auto">
+                            {gallery.images.slice(0, 4).map((img, i) => (
+                                <img
+                                    key={i}
+                                    src={img}
+                                    alt="Gallery preview"
+                                    className="h-20 w-20 object-cover rounded"
+                                />
+                            ))}
+                        </div>
+                    </Link>
+                )}
 
                 {/* Body */}
                 <article className="prose-retro p-4 md:p-6 whitespace-pre-wrap">
