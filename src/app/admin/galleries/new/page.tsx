@@ -21,6 +21,7 @@ export default function CreateGalleryPage() {
     const [name, setName] = useState("");
     const [images, setImages] = useState("");
     const [password, setPassword] = useState("");
+    const [previews, setPreviews] = useState<string[]>([]);
 
     const [tags, setTags] = useState<string[]>([]);
     const [tagChoice, setTagChoice] = useState("");
@@ -60,6 +61,7 @@ export default function CreateGalleryPage() {
         });
         setName(""); setImages(""); setPassword(""); setTags([]);
         setEventMonth(""); setEventYear("");
+        setPreviews([]);
         alert("Gallery created");
     };
 
@@ -70,14 +72,23 @@ export default function CreateGalleryPage() {
                 <form onSubmit={submit} className="grid gap-2">
                     <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
                     <Uploader
-                        onUploaded={(urls) =>
+                        onUploaded={(urls) => {
+                            setPreviews((prev) => [...prev, ...urls]);
                             setImages((prev) =>
                                 [prev, urls.join(", ")]
                                     .filter(Boolean)
                                     .join(", ")
-                            )
-                        }
+                            );
+                        }}
                     />
+                    {previews.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {previews.map((src, i) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img key={i} src={src} alt="preview" className="w-24 h-24 object-cover" />
+                            ))}
+                        </div>
+                    )}
                     <Input type="password" placeholder="Password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} />
 
                     {/* Month / Year */}
