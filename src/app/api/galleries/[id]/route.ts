@@ -13,7 +13,8 @@ export async function PUT(req: Request, { params }: Ctx) {
     const unset: any = {};
 
     if (typeof body.name === 'string') set.name = body.name;
-    if (Array.isArray(body.images)) set.images = body.images;
+    // Only update images when a non-empty array is provided to avoid accidental clears
+    if (Array.isArray(body.images) && body.images.length > 0) set.images = body.images;
     if (Array.isArray(body.tags)) set.tags = body.tags;
 
     if (typeof body.password === 'string' && body.password.length > 0) {
