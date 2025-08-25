@@ -25,6 +25,14 @@ export async function POST(req: Request) {
 
     const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: "1d" });
     const res = NextResponse.json({ message: "ok" });
-    res.cookies.set({ name: "admin_token", value: token, httpOnly: true, sameSite: "lax", path: "/" });
+    res.cookies.set({
+        name: "admin_token",
+        value: token,
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24,
+        secure: process.env.NODE_ENV === "production", // ✅
+    });
     return res;
 }
