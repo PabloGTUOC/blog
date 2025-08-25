@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 
 type Params = Promise<{ id: string }>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
-type LeanGallery = { _id: Types.ObjectId; name: string };
+type LeanGallery = { _id: Types.ObjectId; name: string; images?: string[] };
 type LeanPost = {
     _id: Types.ObjectId;
     title: string;
@@ -68,7 +68,7 @@ export default async function PostPage({ params }: { params: Params }) {
 
     const post = await Post.findById(id)
         .select("title content gallery tags createdAt")
-        .populate("gallery", "name")
+        .populate("gallery", "name images")
         .populate("tags", "name color")
         .lean<LeanPost>();
 
@@ -79,6 +79,7 @@ export default async function PostPage({ params }: { params: Params }) {
         post.gallery && typeof post.gallery === "object" ? (post.gallery as LeanGallery) : null;
     const galleryId = gallery?._id?.toString?.();
     const galleryName = gallery?.name ?? null;
+    const galleryImages = Array.isArray(gallery?.images) ? gallery.images : [];
 
     // tags normalized
     const tags =
@@ -114,6 +115,17 @@ export default async function PostPage({ params }: { params: Params }) {
                     >
                         {post.title}
                     </h1>
+
+                    {galleryId && galleryImages.length > 0 && (
+                        <Link href={`/galleries/${galleryId}`} className="mt-2 block">
+                            <div className="flex gap-2">
+                                {galleryImages.slice(0, 4).map((src, i) => (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img key={i} src={src} alt="gallery preview" className="w-16 h-16 object-cover border" />
+                                ))}
+                            </div>
+                        </Link>
+                    )}
 
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--subt)]">
                         {created && <span className="retro-label">{created}</span>}
