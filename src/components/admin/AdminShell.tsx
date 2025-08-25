@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import GalleryPicker from "@/components/admin/GalleryPicker";
+
 
 const NAV = [
     { href: "/admin", label: "Dashboard" },

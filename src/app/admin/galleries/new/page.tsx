@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import Uploader from "@/components/Uploader";
+
 
 type TagRec = { _id: string; name: string };
 
@@ -67,7 +69,14 @@ export default function CreateGalleryPage() {
             <Card className="space-y-2">
                 <form onSubmit={submit} className="grid gap-2">
                     <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-                    <Input placeholder="Image URLs comma separated" value={images} onChange={(e) => setImages(e.target.value)} />
+                    <Uploader
+                        onUploaded={(urls) =>
+                            setGallery((g) => ({
+                                ...g,
+                                images: [g.images, urls.join(", ")].filter(Boolean).join(", "),
+                            }))
+                        }
+                    />
                     <Input type="password" placeholder="Password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} />
 
                     {/* Month / Year */}

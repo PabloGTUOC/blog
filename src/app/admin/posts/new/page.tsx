@@ -1,112 +1,90 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import GalleryPicker from "@/components/admin/GalleryPicker";
 
-type TagRec = { _id: string; name: string; color?: string };
+type PostForm = { title: string; content: string };
 
-export default function CreatePostPage() {
-    const [allTags, setAllTags] = useState<TagRec[]>([]);
-    const [title, setTitle] = useState("");
-    const [content, setContent] = useState("");
-    const [galleryId, setGalleryId] = useState("");
-    const [tags, setTags] = useState<string[]>([]);
-    const [tagChoice, setTagChoice] = useState("");
+export default function NewPostPage() {
+    const [post, setPost] = useState<PostForm>({ title: "", content: "" });
+    const [selectedGallery, setSelectedGallery] =
+        useState<{ id: string; name?: string } | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
 
-    useEffect(() => {
-        (async () => {
-            const res = await fetch("/api/tags");
-            setAllTags(await res.json());
-        })();
-    }, []);
-
-    const addTag = () => {
-        if (!tagChoice) return;
-        setTags((t) => (t.includes(tagChoice) ? t : [...t, tagChoice]));
-        setTagChoice("");
-    };
-
-    const removeTag = (id: string) => setTags((t) => t.filter((x) => x !== id));
-
-    const submit = async (e: React.FormEvent) => {
+    const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await fetch("/api/posts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                title,
-                content,
-                gallery: galleryId || null,
-                tags,
-            }),
-        });
-        setTitle(""); setContent(""); setGalleryId(""); setTags([]);
-        alert("Post created");
+        setSaving(true);
+        setMsg(null);
+        try {
+            const res = await fetch("/api/posts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title: post.title,
+                    content: post.content,
+                    gallery: selectedGallery?.id || null,
+                }),
+            });
+            if (!res.ok) {
+                const j = await res.json().catch(() => ({} as any));
+                throw new Error(j?.message || "Failed to create post");
+            }
+            setMsg("Saved!");
+            setPost({ title: "", content: "" });
+            setSelectedGallery(null);
+        } catch (err: any) {
+            setMsg(err.message || "Error");
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="space-y-3">
-            <h1 className="retro-title">Create Post</h1>
-            <Card className="space-y-2">
-                <form onSubmit={submit} className="grid gap-2">
-                    <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-                    <textarea
-                        className="retro-input"
-                        rows={5}
-                        placeholder="Content"
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                    />
+        <div className="p-4 max-w-2xl mx-auto">
+            <h1 className="retro-title mb-3">Create Post</h1>
+            <Card className="p-4">
+                <form onSubmit={onSubmit} className="grid gap-3">
+                    {msg && <div className="text-sm">{msg}</div>}
+
                     <Input
-                        placeholder="Gallery ID (optional)"
-                        value={galleryId}
-                        onChange={(e) => setGalleryId(e.target.value)}
+                        placeholder="Title"
+                        value={post.title}
+                        onChange={(e) => setPost((p) => ({ ...p, title: e.target.value }))}
                     />
 
-                    {/* Tag picker */}
-                    {allTags.length > 0 ? (
-                        <div>
-                            <div className="retro-label mb-1">Tags</div>
-                            <div className="flex items-center gap-2">
-                                <select
-                                    className="retro-input"
-                                    value={tagChoice}
-                                    onChange={(e) => setTagChoice(e.target.value)}
-                                >
-                                    <option value="">Choose a tag…</option>
-                                    {allTags.map((t) => (
-                                        <option key={t._id} value={t._id}>{t.name}</option>
-                                    ))}
-                                </select>
-                                <Button type="button" onClick={addTag}>Add</Button>
-                            </div>
+                    <textarea
+                        className="retro-input min-h-[120px]"
+                        placeholder="Content"
+                        value={post.content}
+                        onChange={(e) =>
+                            setPost((p) => ({ ...p, content: e.target.value }))
+                        }
+                    />
 
-                            {tags.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {tags.map((id) => {
-                                        const t = allTags.find((x) => x._id === id);
-                                        return (
-                                            <span key={id} className="retro-btn">
-                        {t?.name ?? "Tag"}
-                                                <button type="button" className="ml-2" onClick={() => removeTag(id)}>×</button>
-                      </span>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                            <div className="text-xs text-[var(--subt)] mt-1">
-                                Pick one, click <em>Add</em>. Repeat to attach multiple tags.
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="text-xs text-[var(--subt)]">
-                            No tags yet — create them in <span className="underline">Manage Tags</span>.
-                        </div>
-                    )}
+                    <GalleryPicker
+                        value={selectedGallery}
+                        onChange={setSelectedGallery}
+                        className="mt-2"
+                    />
 
-                    <Button variant="primary" type="submit">Save Post</Button>
+                    <div className="flex gap-2">
+                        <Button type="submit" variant="primary" disabled={saving}>
+                            {saving ? "Saving…" : "Save Post"}
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => {
+                                setPost({ title: "", content: "" });
+                                setSelectedGallery(null);
+                            }}
+                        >
+                            Clear
+                        </Button>
+                    </div>
                 </form>
             </Card>
         </div>
