@@ -71,10 +71,11 @@ export default function CreateGalleryPage() {
                     <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
                     <Uploader
                         onUploaded={(urls) =>
-                            setGallery((g) => ({
-                                ...g,
-                                images: [g.images, urls.join(", ")].filter(Boolean).join(", "),
-                            }))
+                            setImages((prev) =>
+                                [prev, urls.join(", ")]
+                                    .filter(Boolean)
+                                    .join(", ")
+                            )
                         }
                     />
                     <Input type="password" placeholder="Password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} />
