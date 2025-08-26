@@ -19,7 +19,7 @@ const MONTHS = [
 ];
 
 function pickTextColor(hex?: string) {
-    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "#000";
+    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "var(--text)";
     const h = hex.replace("#", "");
     const r = parseInt(h.slice(0, 2), 16) / 255;
     const g = parseInt(h.slice(2, 4), 16) / 255;

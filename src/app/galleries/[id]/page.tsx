@@ -12,7 +12,7 @@ type SearchParams = Promise<{ password?: string | string[] }>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 
 function pickTextColor(hex?: string) {
-    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "#000";
+    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "var(--text)";
     const h = hex.replace("#", "");
     const r = parseInt(h.slice(0, 2), 16) / 255;
     const g = parseInt(h.slice(2, 4), 16) / 255;
@@ -20,7 +20,6 @@ function pickTextColor(hex?: string) {
     const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     return L > 0.55 ? "#000" : "#fff";
 }
-function hashString(s: string) { let h = 0; for (let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i))|0; return Math.abs(h); }
 
 function formatEventDate(month?: number, year?: number) {
     const names = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -75,15 +74,13 @@ export default async function GalleryPage({
 
     const images: string[] = Array.isArray(gallery.images) ? gallery.images : [];
 
-    // Accent color: prefer first tag color, else palette by id hash
+    // Gather tags for badge display
     const tags =
         Array.isArray(gallery.tags)
             ? (gallery.tags
                 .map((t) => (typeof t === 'object' ? { id: t._id.toString(), name: t.name, color: t.color } : null))
                 .filter(Boolean) as { id: string; name: string; color?: string }[])
             : [];
-    const palette = ["#ff4fa3", "#2bd9ff", "#ffd166", "#4f9dff"];
-    const accentHex = tags[0]?.color || palette[hashString(id) % palette.length];
 
     return (
         <div className="p-4">
@@ -91,7 +88,7 @@ export default async function GalleryPage({
                 <header className="px-4 md:px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
                     <h1
                         className="page-title leading-none tracking-tight"
-                        style={{ color: accentHex, textShadow: "3px 3px 0 rgba(0,0,0,.8)" }}
+                        style={{ color: "var(--accent)", textShadow: "3px 3px 0 rgba(0,0,0,.8)" }}
                     >
                         {gallery.name}
                     </h1>
