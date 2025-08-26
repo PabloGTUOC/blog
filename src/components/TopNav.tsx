@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import UserName from "@/components/UserName";
 
 export default function TopNav() {
     const pathname = usePathname();
@@ -30,6 +31,7 @@ export default function TopNav() {
             <span className="retro-title ml-2">Portfolio</span>
 
             <div className="ml-auto flex items-center gap-2">
+                <UserName />
                 <ThemeToggle />
             </div>
         </nav>

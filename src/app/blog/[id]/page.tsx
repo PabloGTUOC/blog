@@ -46,19 +46,13 @@ function renderWithLinks(text: string): React.ReactNode {
 }
 
 function pickTextColor(hex?: string) {
-    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "#000";
+    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "var(--text)";
     const h = hex.replace("#", "");
     const r = parseInt(h.slice(0, 2), 16) / 255;
     const g = parseInt(h.slice(2, 4), 16) / 255;
     const b = parseInt(h.slice(4, 6), 16) / 255;
     const L = 0.2126 * r + 0.7152 * g + 0.0722 * b; // luminance
     return L > 0.55 ? "#000" : "#fff";
-}
-
-function hashString(s: string) {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return Math.abs(h);
 }
 
 export default async function PostPage({ params }: { params: Params }) {
@@ -93,9 +87,6 @@ export default async function PostPage({ params }: { params: Params }) {
                 .filter(Boolean) as { id: string; name: string; color?: string }[])
             : [];
 
-    // catchy accent: prefer first tag's color; else pick from retro palette by id hash
-    const palette = ["#ff4fa3", "#2bd9ff", "#ffd166", "#4f9dff"];
-    const accentHex = tags[0]?.color || palette[hashString(id) % palette.length];
     const titleShadow = "3px 3px 0 rgba(0,0,0,.8)";
 
     const created =
@@ -109,7 +100,7 @@ export default async function PostPage({ params }: { params: Params }) {
                     <h1
                         className="post-title font-[var(--font-vt323)] leading-none tracking-tight"
                         style={{
-                            color: accentHex,
+                            color: "var(--accent)",
                             textShadow: titleShadow,
                         }}
                     >

@@ -21,16 +21,6 @@ const MONTHS = [
     { v: 7, n: "Jul" }, { v: 8, n: "Aug" }, { v: 9, n: "Sep" },
     { v: 10, n: "Oct" }, { v: 11, n: "Nov" }, { v: 12, n: "Dec" },
 ];
-
-function pickTextColor(hex?: string) {
-    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "#000";
-    const h = hex.replace("#", "");
-    const r = parseInt(h.slice(0, 2), 16) / 255;
-    const g = parseInt(h.slice(2, 4), 16) / 255;
-    const b = parseInt(h.slice(4, 6), 16) / 255;
-    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    return L > 0.55 ? "#000" : "#fff";
-}
 function formatEventDate(m?: number, y?: number) {
     const names = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     if (m && y) return `${names[m]} ${y}`;

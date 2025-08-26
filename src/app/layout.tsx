@@ -4,6 +4,7 @@ import "./globals.css";
 import { Inter, VT323 } from "next/font/google";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
+import UserName from "@/components/UserName";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const vt323 = VT323({ weight: "400", subsets: ["latin"], variable: "--font-vt323" });
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <span className="retro-title ml-2">Portfolio</span>
 
                     <div className="ml-auto flex items-center gap-2">
+                        <UserName />
                         <ThemeToggle />
                     </div>
                 </nav>
