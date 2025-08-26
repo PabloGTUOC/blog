@@ -19,7 +19,7 @@ const MONTHS = [
 export default function CreateGalleryPage() {
     const [allTags, setAllTags] = useState<TagRec[]>([]);
     const [name, setName] = useState("");
-    const [images, setImages] = useState("");
+    const [images, setImages] = useState<string[]>([]);
     const [password, setPassword] = useState("");
     const [previews, setPreviews] = useState<string[]>([]);
 
@@ -52,14 +52,14 @@ export default function CreateGalleryPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 name,
-                images: images.split(",").map((s) => s.trim()).filter(Boolean),
+                images,
                 password: password || undefined,
                 tags,
                 eventMonth: eventMonth === "" ? undefined : eventMonth,
                 eventYear: eventYear === "" ? undefined : eventYear,
             }),
         });
-        setName(""); setImages(""); setPassword(""); setTags([]);
+        setName(""); setImages([]); setPassword(""); setTags([]);
         setEventMonth(""); setEventYear("");
         setPreviews([]);
         alert("Gallery created");
@@ -74,11 +74,7 @@ export default function CreateGalleryPage() {
                     <Uploader
                         onUploaded={(urls) => {
                             setPreviews((prev) => [...prev, ...urls]);
-                            setImages((prev) =>
-                                [prev, urls.join(", ")]
-                                    .filter(Boolean)
-                                    .join(", ")
-                            );
+                            setImages((prev) => [...prev, ...urls]);
                         }}
                     />
                     {previews.length > 0 && (
