@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import Uploader from "@/components/Uploader";
 
 type TagRec = { _id: string; name: string };
 type Row = {
@@ -152,6 +153,7 @@ export default function ManageGalleriesPage() {
                             eventMonth: r.eventMonth ?? "",
                             eventYear: r.eventYear ?? "",
                         };
+                        const imgArr = e.images.split(",").map((s) => s.trim()).filter(Boolean);
                         return (
                             <Card key={r._id} className="space-y-2">
                                 <Input
@@ -159,6 +161,22 @@ export default function ManageGalleriesPage() {
                                     onChange={(ev) => setEdits((m) => ({ ...m, [r._id]: { ...e, name: ev.target.value } }))}
                                     placeholder="Name"
                                 />
+                                <Uploader
+                                    onUploaded={(urls) =>
+                                        setEdits((m) => ({
+                                            ...m,
+                                            [r._id]: { ...e, images: [...imgArr, ...urls].join(", ") },
+                                        }))
+                                    }
+                                />
+                                {imgArr.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {imgArr.map((src, i) => (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img key={i} src={src} alt="preview" className="w-24 h-24 object-cover" />
+                                        ))}
+                                    </div>
+                                )}
                                 <Input
                                     value={e.images}
                                     onChange={(ev) => setEdits((m) => ({ ...m, [r._id]: { ...e, images: ev.target.value } }))}
