@@ -1,26 +1,22 @@
 // app/api/family/galleries/[id]/upload/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
-import connect from "@/lib/mongodb";
-import FamilyUser from "@/models/FamilyUser";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
 import { ensureGalleryDir, writeBufferFile, uniqueName } from "@/lib/fs-server";
 import { slugify } from "@/lib/slug";
 import { join, extname, basename } from "node:path";
 import { Types } from "mongoose";
+import { getApprovedFamilyUser } from "@/lib/familyAuth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    await connect();
-    const dbUser = await FamilyUser.findOne({ email: user.email }).lean();
-    if (dbUser?.status !== "approved") {
+    const { error } = await getApprovedFamilyUser();
+    if (error === "unauthorized") {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (error) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

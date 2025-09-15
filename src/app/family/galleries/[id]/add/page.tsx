@@ -1,6 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
-import connect from "@/lib/mongodb";
-import FamilyUser from "@/models/FamilyUser";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
 import FamilyLogin from "@/components/FamilyLogin";
@@ -8,19 +5,24 @@ import { Card } from "@/components/ui/Card";
 import Uploader from "@/components/Uploader";
 import { useState } from "react";
 import { Types } from "mongoose";
+import { getApprovedFamilyUser } from "@/lib/familyAuth";
 
 export const dynamic = "force-dynamic";
 type LeanGallery = { _id: Types.ObjectId; name: string; images: string[] };
 
 export default async function AddPhotosPage({ params }: { params: { id: string } }) {
     const { id } = params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.email) return <FamilyLogin />;
-
-    await connect();
-    const dbUser = await FamilyUser.findOne({ email: user.email }).lean();
-    if (dbUser?.status !== "approved") {
+    const { error } = await getApprovedFamilyUser();
+    if (error === "unauthorized") return <FamilyLogin />;
+    if (error === "blocked") {
+        return (
+            <div className="space-y-4">
+                <h1 className="retro-title">Family</h1>
+                <div className="text-sm text-[var(--subt)]">Your access has been blocked.</div>
+            </div>
+        );
+    }
+    if (error) {
         return (
             <div className="space-y-4">
                 <h1 className="retro-title">Family</h1>
