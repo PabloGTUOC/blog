@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { pickGooglePhotos } from '@/utils/googlePhotosPicker';
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_PHOTOS_CLIENT_ID;
+const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_PHOTOS_API_KEY;
+const GOOGLE_ENABLED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_API_KEY);
 
 const MONTHS = [
     { value: '1', label: 'January' },
@@ -22,28 +27,51 @@ const MONTHS = [
 
 export default function Form() {
     const [name, setName] = useState('');
-    const [files, setFiles] = useState<FileList | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
     const [eventMonth, setEventMonth] = useState('');
     const [eventYear, setEventYear] = useState('');
     const [busy, setBusy] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const onPickFiles: React.ChangeEventHandler<HTMLInputElement> = (e) => {
         const fs = e.target.files;
-        setFiles(fs);
         if (fs && fs.length) {
-            const urls = Array.from(fs).map((f) => URL.createObjectURL(f));
-            setPreviews(urls);
-        } else {
-            setPreviews([]);
+            setFiles((prev) => [...prev, ...Array.from(fs)]);
         }
+        e.target.value = '';
     };
 
     useEffect(() => {
+        const urls = files.map((file) => URL.createObjectURL(file));
+        setPreviews(urls);
         return () => {
-            previews.forEach((src) => URL.revokeObjectURL(src));
+            urls.forEach((src) => URL.revokeObjectURL(src));
         };
-    }, [previews]);
+    }, [files]);
+
+    const importFromGooglePhotos = async () => {
+        if (!GOOGLE_ENABLED || !GOOGLE_CLIENT_ID || !GOOGLE_API_KEY || importing) return;
+        try {
+            setImporting(true);
+            const { files: importedFiles, failures } = await pickGooglePhotos({
+                clientId: GOOGLE_CLIENT_ID,
+                apiKey: GOOGLE_API_KEY,
+            });
+            if (importedFiles.length) {
+                setFiles((prev) => [...prev, ...importedFiles]);
+            }
+            if (failures > 0) {
+                alert(`${failures} Google Photo${failures === 1 ? '' : 's'} could not be imported.`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert(err instanceof Error ? err.message : String(err));
+        } finally {
+            setImporting(false);
+        }
+    };
 
     const submit: React.FormEventHandler = async (e) => {
         e.preventDefault();
@@ -51,21 +79,27 @@ export default function Form() {
             alert('Select the event month and year');
             return;
         }
+        if (files.length === 0) {
+            alert('Add at least one photo to the gallery');
+            return;
+        }
         setBusy(true);
         try {
             const form = new FormData();
             form.set('name', name);
-            if (files) Array.from(files).forEach((f) => form.append('files', f));
+            files.forEach((f) => form.append('files', f));
             form.set('eventMonth', eventMonth);
             form.set('eventYear', eventYear);
             const res = await fetch('/api/family/galleries', { method: 'POST', body: form });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || 'Create failed');
             setName('');
-            setFiles(null);
-            setPreviews([]);
+            setFiles([]);
             setEventMonth('');
             setEventYear('');
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
             alert('Gallery created');
         } catch (err) {
             console.error(err);
@@ -109,7 +143,21 @@ export default function Form() {
                         onChange={(e) => setEventYear(e.target.value)}
                         required
                     />
-                    <input type="file" multiple accept="image/*" onChange={onPickFiles} />
+                    <div className="grid gap-2">
+                        <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={onPickFiles} />
+                        {GOOGLE_ENABLED ? (
+                            <Button type="button" onClick={importFromGooglePhotos} disabled={busy || importing}>
+                                {importing ? 'Loading Google Photos…' : 'Import from Google Photos'}
+                            </Button>
+                        ) : (
+                            <div className="text-xs text-[var(--subt)]">
+                                Configure Google Photos credentials to enable importing from Google Photos.
+                            </div>
+                        )}
+                    </div>
+                    {files.length > 0 && (
+                        <div className="text-xs text-[var(--subt)]">Selected {files.length} photo{files.length === 1 ? '' : 's'}.</div>
+                    )}
                     {previews.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                             {previews.map((src, i) => (
@@ -118,8 +166,8 @@ export default function Form() {
                             ))}
                         </div>
                     )}
-                    <Button variant="primary" type="submit" disabled={busy}>
-                        {busy ? 'Saving…' : 'Save Gallery'}
+                    <Button variant="primary" type="submit" disabled={busy || importing}>
+                        {busy ? 'Saving…' : importing ? 'Importing…' : 'Save Gallery'}
                     </Button>
                 </form>
             </Card>

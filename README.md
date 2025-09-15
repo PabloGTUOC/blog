@@ -20,6 +20,10 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ### Environment Variables
 
 Create a `.env` file based on `.env.example` and provide your MongoDB connection string and Supabase credentials.
+To enable Google Photos imports when creating family galleries, also configure the following values:
+
+- `NEXT_PUBLIC_GOOGLE_PHOTOS_CLIENT_ID` – OAuth client ID with access to the Google Photos Library API.
+- `NEXT_PUBLIC_GOOGLE_PHOTOS_API_KEY` – API key for the same Google Cloud project with the Photos Library API enabled.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
