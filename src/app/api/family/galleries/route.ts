@@ -7,6 +7,7 @@ import { slugify } from "@/lib/slug";
 import { join, extname, basename } from "node:path";
 import { Types } from "mongoose";
 import { getApprovedFamilyUser } from "@/lib/familyAuth";
+import connect from "@/lib/mongodb";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,16 @@ export async function POST(req: NextRequest) {
 
         const eventMonthRaw = form.get("eventMonth");
         const eventYearRaw = form.get("eventYear");
+        const monthNum = Number(eventMonthRaw);
+        const yearNum = Number(eventYearRaw);
+        if (!eventMonthRaw || Number.isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+            return NextResponse.json({ error: "Event month is required" }, { status: 400 });
+        }
+        if (!eventYearRaw || Number.isNaN(yearNum) || yearNum < 1900 || yearNum > 3000) {
+            return NextResponse.json({ error: "Event year is required" }, { status: 400 });
+        }
+
+        await connect();
 
         // Find or create the family tag
         const familyTag = await Tag.findOneAndUpdate(
@@ -64,8 +75,8 @@ export async function POST(req: NextRequest) {
             slug,
             images: urls,
             tags: [familyTag._id],
-            eventMonth: eventMonthRaw ? Number(eventMonthRaw) : undefined,
-            eventYear: eventYearRaw ? Number(eventYearRaw) : undefined,
+            eventMonth: monthNum,
+            eventYear: yearNum,
             createdAt: new Date(),
             updatedAt: new Date(),
         });

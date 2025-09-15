@@ -7,6 +7,7 @@ import { slugify } from "@/lib/slug";
 import { join, extname, basename } from "node:path";
 import { Types } from "mongoose";
 import { getApprovedFamilyUser } from "@/lib/familyAuth";
+import connect from "@/lib/mongodb";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (error) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    await connect();
 
     const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id").lean<{ _id: Types.ObjectId } | null>();
     const g = await Gallery.findOne({ _id: id, tags: familyTag?._id });
