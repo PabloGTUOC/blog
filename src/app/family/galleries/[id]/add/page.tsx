@@ -10,13 +10,10 @@ import { useState } from "react";
 import { Types } from "mongoose";
 
 export const dynamic = "force-dynamic";
-
-type Params = Promise<{ id: string }>;
-
 type LeanGallery = { _id: Types.ObjectId; name: string; images: string[] };
 
-export default async function AddPhotosPage({ params }: { params: Params }) {
-    const { id } = await params;
+export default async function AddPhotosPage({ params }: { params: { id: string } }) {
+    const { id } = params;
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user?.email) return <FamilyLogin />;
