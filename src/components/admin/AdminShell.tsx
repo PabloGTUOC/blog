@@ -5,11 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import GalleryPicker from "@/components/admin/GalleryPicker";
-
-
 const NAV = [
     { href: "/admin", label: "Dashboard" },
+    { href: "/admin/entries/new", label: "Create Entry" },
+    { href: "/admin/entries", label: "Manage Entries" },
     { href: "/admin/posts/new", label: "Create Post" },
     { href: "/admin/posts", label: "Manage Posts" },
     { href: "/admin/galleries/new", label: "Create Gallery" },
