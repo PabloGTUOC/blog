@@ -45,9 +45,9 @@ export default async function Home() {
             {entries.length === 0 ? (
                 <div className="text-sm text-[var(--subt)]">No entries yet. Check back soon!</div>
             ) : (
-                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
                     {entries.map((entry) => (
-                        <Card key={entry.id} className="overflow-hidden flex flex-col">
+                        <Card key={entry.id} className="flex w-full flex-col overflow-hidden">
                             <div className="relative aspect-[4/3] w-full bg-[var(--muted)]">
                                 {entry.imageUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
