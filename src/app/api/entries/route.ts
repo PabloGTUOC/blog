@@ -27,6 +27,7 @@ export async function GET(req: Request) {
         imageUrl: 1,
         publishedAt: 1,
         createdAt: 1,
+        tags: 1,
     })
         .sort({ publishedAt: -1, createdAt: -1 })
         .limit(limit);
@@ -53,6 +54,11 @@ export async function POST(req: Request) {
         caption: typeof data.caption === 'string' ? data.caption : '',
         imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : '',
         publishedAt,
+        tags: Array.isArray(data.tags)
+            ? data.tags
+                  .map((value) => (typeof value === 'string' ? value : null))
+                  .filter((value): value is string => Boolean(value))
+            : [],
     });
 
     return NextResponse.json(entry, { status: 201 });

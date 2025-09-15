@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -11,7 +11,10 @@ type EntryForm = {
     caption: string;
     imageUrl: string;
     date: string;
+    tags: string[];
 };
+
+type TagOption = { _id: string; name: string };
 
 export default function NewEntryPage() {
     const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -20,9 +23,41 @@ export default function NewEntryPage() {
         caption: "",
         imageUrl: "",
         date: today,
+        tags: [],
     });
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState<string | null>(null);
+    const [allTags, setAllTags] = useState<TagOption[]>([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch("/api/tags");
+                if (!res.ok) return;
+                const data: unknown = await res.json();
+                if (!Array.isArray(data)) return;
+
+                const normalized = data
+                    .map((item) => {
+                        if (!item || typeof item !== "object") return null;
+                        const raw = item as { _id?: unknown; name?: unknown };
+                        const id =
+                            typeof raw._id === "string"
+                                ? raw._id
+                                : raw._id && typeof raw._id === "object" && "toString" in raw._id
+                                    ? String((raw._id as { toString(): unknown }).toString())
+                                    : "";
+                        const name = typeof raw.name === "string" ? raw.name : "";
+                        return id ? { _id: id, name } : null;
+                    })
+                    .filter((tag): tag is TagOption => Boolean(tag));
+
+                setAllTags(normalized);
+            } catch (error) {
+                console.error("Failed to load tags", error);
+            }
+        })();
+    }, []);
 
     const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -33,6 +68,7 @@ export default function NewEntryPage() {
                 title: entry.title,
                 caption: entry.caption,
                 imageUrl: entry.imageUrl,
+                tags: entry.tags,
             };
             if (entry.date) {
                 payload.publishedAt = new Date(`${entry.date}T00:00:00`).toISOString();
@@ -53,7 +89,7 @@ export default function NewEntryPage() {
             }
 
             setMsg("Saved!");
-            setEntry({ title: "", caption: "", imageUrl: "", date: today });
+            setEntry({ title: "", caption: "", imageUrl: "", date: today, tags: [] });
         } catch (error: unknown) {
             setMsg(error instanceof Error ? error.message : "Error");
         } finally {
@@ -106,13 +142,37 @@ export default function NewEntryPage() {
                         onChange={(e) => setEntry((v) => ({ ...v, caption: e.target.value }))}
                     />
 
+                    <div>
+                        <div className="retro-label mb-1">Tags</div>
+                        <select
+                            multiple
+                            className="retro-input h-28"
+                            value={entry.tags}
+                            onChange={(event) => {
+                                const values = Array.from(event.currentTarget.selectedOptions).map((option) => option.value);
+                                setEntry((v) => ({ ...v, tags: values }));
+                            }}
+                        >
+                            {allTags.map((tag) => (
+                                <option key={tag._id} value={tag._id}>
+                                    {tag.name}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="text-xs text-[var(--subt)]">
+                            {allTags.length > 0
+                                ? "Hold ⌘/Ctrl to select multiple."
+                                : "No tags yet — create them in Manage Tags."}
+                        </div>
+                    </div>
+
                     <div className="flex gap-2">
                         <Button type="submit" variant="primary" disabled={saving}>
                             {saving ? "Saving…" : "Save Entry"}
                         </Button>
                         <Button
                             type="button"
-                            onClick={() => setEntry({ title: "", caption: "", imageUrl: "", date: today })}
+                            onClick={() => setEntry({ title: "", caption: "", imageUrl: "", date: today, tags: [] })}
                         >
                             Clear
                         </Button>

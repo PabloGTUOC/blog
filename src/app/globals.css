@@ -176,11 +176,16 @@ html, body {
 /* ... keep your existing theme + palette ... */
 
 .site-bg {
+    --site-pad-top: 24px;
+    --site-pad-bottom: 40px;
     min-height: 100svh;
+    height: 100svh;
+    box-sizing: border-box;
+    overflow: hidden;
     display: flex;
     justify-content: center;     /* center horizontally */
     align-items: flex-start;     /* stick near the top */
-    padding: 24px 16px 40px;     /* top/side/bottom padding */
+    padding: var(--site-pad-top) 16px var(--site-pad-bottom);     /* top/side/bottom padding */
     background-color: var(--bg);
 
     /* keep your layered retro background */
@@ -193,7 +198,9 @@ html, body {
 }
 
 @media (min-width: 768px) {
-    .site-bg { padding-top: 48px; }   /* a bit more breathing room on desktop */
+    .site-bg {
+        --site-pad-top: 48px;   /* a bit more breathing room on desktop */
+    }
 }
 
 .app-frame {
@@ -203,7 +210,17 @@ html, body {
     border: 1px solid var(--border);
     border-radius: theme(--radius-retro);
     box-shadow: theme(--shadow-retro);
-    overflow: clip;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100svh - var(--site-pad-top) - var(--site-pad-bottom));
+}
+
+.app-content {
+    flex: 1;
+    min-height: 0; /* allow flex child to scroll */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Bigger, catchy post titles (auto scales) */
