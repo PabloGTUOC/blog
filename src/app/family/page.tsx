@@ -1,14 +1,12 @@
 // src/app/family/page.tsx
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
-import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
-import FamilyUser from "@/models/FamilyUser";
 import "@/models/Tag";
 import { Card } from "@/components/ui/Card";
 import FamilyLogin from "@/components/FamilyLogin";
 import { Types } from "mongoose";
+import { getApprovedFamilyUser } from "@/lib/familyAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,29 +28,9 @@ function formatEventDate(m?: number, y?: number) {
 }
 
 export default async function FamilyPage({ searchParams }: { searchParams: SearchParams }) {
-    // ✅ use SSR client + getUser (session can be null)
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // If not signed in, show the Google login prompt
-    if (!user?.email) return <FamilyLogin />;
-
-    await connect();
-
-    // Upsert a FamilyUser and enforce defaults
-    const dbUser = await FamilyUser.findOneAndUpdate(
-        { email: user.email },
-        {
-            $setOnInsert: {
-                name: (user.user_metadata as { full_name?: string } | null)?.full_name || user.email,
-                status: "pending",
-            },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).lean();
-
-    // Gate: only approved can proceed
-    if (dbUser.status === "blocked") {
+    const { error } = await getApprovedFamilyUser({ upsert: true });
+    if (error === "unauthorized") return <FamilyLogin />;
+    if (error === "blocked") {
         return (
             <div className="space-y-4">
                 <h1 className="retro-title">Family</h1>
@@ -60,7 +38,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
             </div>
         );
     }
-    if (dbUser.status !== "approved") {
+    if (error) {
         return (
             <div className="space-y-4">
                 <h1 className="retro-title">Family</h1>
