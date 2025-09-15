@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -12,14 +12,46 @@ type EntryRec = {
     caption: string;
     imageUrl: string;
     publishedAt?: string;
+    tags: string[];
 };
 
+type TagRec = { _id: string; name: string };
+
 export default function ManageEntriesPage() {
+    const [allTags, setAllTags] = useState<TagRec[]>([]);
     const [q, setQ] = useState("");
     const [hasSearched, setHasSearched] = useState(false);
     const [loading, setLoading] = useState(false);
     const [rows, setRows] = useState<EntryRec[]>([]);
     const [edits, setEdits] = useState<Record<string, EntryRec>>({});
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch("/api/tags");
+                if (!res.ok) return;
+                const data: unknown = await res.json();
+                if (!Array.isArray(data)) return;
+                const normalized = data
+                    .map((item) => {
+                        if (!item || typeof item !== "object") return null;
+                        const raw = item as { _id?: unknown; name?: unknown };
+                        const id =
+                            typeof raw._id === "string"
+                                ? raw._id
+                                : raw._id && typeof raw._id === "object" && "toString" in raw._id
+                                    ? String((raw._id as { toString(): unknown }).toString())
+                                    : "";
+                        const name = typeof raw.name === "string" ? raw.name : "";
+                        return id ? { _id: id, name } : null;
+                    })
+                    .filter((tag): tag is TagRec => Boolean(tag));
+                setAllTags(normalized);
+            } catch (error) {
+                console.error("Failed to load tags", error);
+            }
+        })();
+    }, []);
 
     const search = async () => {
         setHasSearched(true);
@@ -43,6 +75,7 @@ export default function ManageEntriesPage() {
                               caption: "",
                               imageUrl: "",
                               publishedAt: "",
+                              tags: [],
                           };
                       }
 
@@ -59,8 +92,20 @@ export default function ManageEntriesPage() {
                       const caption = typeof obj.caption === "string" ? obj.caption : "";
                       const imageUrl = typeof obj.imageUrl === "string" ? obj.imageUrl : "";
                       const publishedAt = toIso(obj.publishedAt) || toIso(obj.createdAt);
+                      const rawTags = obj.tags;
+                      const tags = Array.isArray(rawTags)
+                          ? rawTags
+                                .map((value) => {
+                                    if (typeof value === "string") return value;
+                                    if (value && typeof value === "object" && "toString" in value) {
+                                        return String((value as { toString(): unknown }).toString());
+                                    }
+                                    return null;
+                                })
+                                .filter((value): value is string => Boolean(value))
+                          : [];
 
-                      return { _id: id, title, caption, imageUrl, publishedAt };
+                      return { _id: id, title, caption, imageUrl, publishedAt, tags };
                   })
                   .filter((entry) => entry._id.length > 0)
             : [];
@@ -75,6 +120,7 @@ export default function ManageEntriesPage() {
             title: entry.title,
             caption: entry.caption,
             imageUrl: entry.imageUrl,
+            tags: entry.tags,
         };
         if (entry.publishedAt) payload.publishedAt = entry.publishedAt;
 
@@ -184,6 +230,30 @@ export default function ManageEntriesPage() {
                                     }
                                     placeholder="Caption"
                                 />
+
+                                <div>
+                                    <div className="retro-label mb-1">Tags</div>
+                                    <select
+                                        multiple
+                                        className="retro-input h-28"
+                                        value={entry.tags ?? []}
+                                        onChange={(ev) => {
+                                            const vals = Array.from(ev.currentTarget.selectedOptions).map((o) => o.value);
+                                            setEdits((m) => ({ ...m, [row._id]: { ...entry, tags: vals } }));
+                                        }}
+                                    >
+                                        {allTags.map((tag) => (
+                                            <option key={tag._id} value={tag._id}>
+                                                {tag.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="text-xs text-[var(--subt)]">
+                                        {allTags.length > 0
+                                            ? "Hold ⌘/Ctrl to select multiple."
+                                            : "No tags yet — create them in Manage Tags."}
+                                    </div>
+                                </div>
 
                                 <div className="flex gap-2">
                                     <Button variant="primary" onClick={() => save(row._id)}>Save</Button>

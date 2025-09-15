@@ -52,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </nav>
 
                 {/* Page content */}
-                <main className="p-4 md:p-6">{children}</main>
+                <main className="app-content p-4 md:p-6">{children}</main>
             </div>
         </div>
         </body>

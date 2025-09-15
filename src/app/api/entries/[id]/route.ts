@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { unlink } from 'fs/promises';
+import path from 'path';
 import connect from '@/lib/mongodb';
 import Entry from '@/models/Entry';
 
@@ -25,6 +27,11 @@ export async function PUT(req: Request, { params }: Ctx) {
             update.publishedAt = date;
         }
     }
+    if (Array.isArray(data.tags)) {
+        update.tags = data.tags
+            .map((value) => (typeof value === 'string' ? value : null))
+            .filter((value): value is string => Boolean(value));
+    }
 
     const entry = await Entry.findByIdAndUpdate(id, { $set: update }, { new: true });
     return NextResponse.json(entry);
@@ -33,6 +40,23 @@ export async function PUT(req: Request, { params }: Ctx) {
 export async function DELETE(_req: Request, { params }: Ctx) {
     await connect();
     const { id } = await params;
-    await Entry.findByIdAndDelete(id);
+    const entry = await Entry.findByIdAndDelete(id);
+
+    if (entry?.imageUrl && typeof entry.imageUrl === 'string' && entry.imageUrl.startsWith('/uploads/')) {
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        const relativePath = entry.imageUrl.replace(/^\/+/u, '');
+        const filePath = path.resolve(process.cwd(), 'public', relativePath);
+        if (filePath.startsWith(uploadsDir)) {
+            try {
+                await unlink(filePath);
+            } catch (error) {
+                const err = error as NodeJS.ErrnoException;
+                if (err.code !== 'ENOENT') {
+                    console.error('Failed to remove entry image', error);
+                }
+            }
+        }
+    }
+
     return NextResponse.json({ ok: true });
 }
