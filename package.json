@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --test test/basic.test.ts test/posts.api.test.ts"
+    "test": "tsx --test test/basic.test.ts test/posts.api.test.ts test/entries.api.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
