@@ -1,51 +1,140 @@
-import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import connect from '@/lib/mongodb';
-import Gallery from '@/models/Gallery';
+// app/api/galleries/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import connect from "@/lib/mongodb";
+import Gallery from "@/models/Gallery";
+import { isValidObjectId } from "mongoose";
+import { slugify } from "@/lib/slug";
+import { renameGalleryFolder } from "@/lib/fs-server";
+import { rm, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
 
-type Ctx = { params: { id: string } };
+export const runtime = "nodejs";
 
-export async function PUT(req: Request, { params }: Ctx) {
+// GET /api/galleries/:id
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     await connect();
-    const body = await req.json();
-
-    const set: any = {};
-    const unset: any = {};
-
-    if (typeof body.name === 'string') set.name = body.name;
-    // Only update images when a non-empty array is provided to avoid accidental clears
-    if (Array.isArray(body.images) && body.images.length > 0) set.images = body.images;
-    if (Array.isArray(body.tags)) set.tags = body.tags;
-
-    if (typeof body.password === 'string' && body.password.length > 0) {
-        set.passwordHash = await bcrypt.hash(body.password, 10);
-    }
-    if (body.clearPassword === true) unset.passwordHash = 1;
-
-    // NEW: month/year updates (pass numbers; omit to keep unchanged)
-    if (Number.isInteger(body.eventMonth)) {
-        const em = Number(body.eventMonth);
-        if (em >= 1 && em <= 12) set.eventMonth = em;
-    }
-    if (Number.isInteger(body.eventYear)) {
-        const ey = Number(body.eventYear);
-        if (ey >= 1900 && ey <= 3000) set.eventYear = ey;
-    }
-    if (body.clearEvent === true) {
-        unset.eventMonth = 1;
-        unset.eventYear = 1;
-    }
-
-    const update: any = {};
-    if (Object.keys(set).length) update.$set = set;
-    if (Object.keys(unset).length) update.$unset = unset;
-
-    const gallery = await Gallery.findByIdAndUpdate(params.id, update, { new: true });
-    return NextResponse.json(gallery);
+    const { id } = await ctx.params;               // <-- await it
+    if (!isValidObjectId(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
+    const g = await Gallery.findById(id).lean();
+    if (!g) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(g);
 }
 
-export async function DELETE(_req: Request, { params }: Ctx) {
+// PUT /api/galleries/:id
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     await connect();
-    await Gallery.findByIdAndDelete(params.id);
+    const { id } = await ctx.params;               // <-- await it
+    if (!isValidObjectId(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
+
+    const payload = await req.json();
+    const g = await Gallery.findById(id);
+    if (!g) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // rename / slug
+    if (typeof payload.name === "string" && payload.name.trim() && payload.name !== g.name) {
+        const newSlug = slugify(payload.name);
+        try {
+            renameGalleryFolder(g.slug, newSlug);
+            g.images = (g.images || []).map((u: string) =>
+                u.replace(`/galleries/${g.slug}/`, `/galleries/${newSlug}/`)
+            );
+            g.slug = newSlug;
+            g.name = payload.name.trim();
+        } catch (e) {
+            console.error("renameGalleryFolder failed:", e);
+            return NextResponse.json({ error: "Rename failed" }, { status: 500 });
+        }
+    }
+
+    // Only update fields; no file I/O here
+    if (Array.isArray(payload.images)) {
+        // Optional guard: reject local previews
+        if (payload.images.some((u: string) => u.startsWith("blob:") || u.startsWith("file:"))) {
+            return NextResponse.json({ error: "Images must be server URLs" }, { status: 400 });
+        }
+        g.images = payload.images;
+    }
+    if (Array.isArray(payload.tags)) g.tags = payload.tags;
+
+    if (payload.clearPassword) g.passwordHash = undefined;
+    else if (typeof payload.password === "string" && payload.password.length > 0) {
+        g.passwordHash = payload.password; // hash if you want
+    }
+
+    if (payload.clearEvent) {
+        g.eventMonth = undefined;
+        g.eventYear = undefined;
+    } else {
+        if (typeof payload.eventMonth === "number") g.eventMonth = payload.eventMonth;
+        if (typeof payload.eventYear === "number") g.eventYear = payload.eventYear;
+    }
+
+    g.updatedAt = new Date();
+    await g.save();
     return NextResponse.json({ ok: true });
+}
+
+// DELETE /api/galleries/:id?deleteFiles=1
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+    await connect();
+    const { id } = await ctx.params;
+
+    if (!isValidObjectId(id)) {
+        return NextResponse.json({ error: "Bad id" }, { status: 400 });
+    }
+
+    const g = await Gallery.findById(id);
+    if (!g) return NextResponse.json({ ok: true, note: "already missing" });
+
+    const { searchParams } = new URL(req.url);
+    const delFiles = searchParams.get("deleteFiles") === "1";
+
+    const diagnostics: any = { slug: g.slug, attempts: [] };
+
+    if (delFiles) {
+        // 1) Primary expected folder: /public/galleries/<slug>
+        const tryDirs = new Set<string>();
+        if (g.slug) {
+            tryDirs.add(join(process.cwd(), "public", "galleries", g.slug));
+        }
+
+        // 2) Any dirs derivable from stored URLs (covers legacy paths or typos)
+        for (const u of g.images ?? []) {
+            if (typeof u !== "string") continue;
+            // normalize URL like /galleries/slug/file.jpg or /uploads/whatever
+            const clean = u.split("?")[0].split("#")[0];
+            if (clean.startsWith("/")) {
+                const abs = join(process.cwd(), "public", clean);
+                // delete the file's parent directory (the gallery folder)
+                tryDirs.add(dirname(abs));
+            }
+        }
+
+        // Attempt to delete each unique directory
+        for (const dir of tryDirs) {
+            const existedBefore = existsSync(dir);
+            let removed = false;
+            let error: string | null = null;
+
+            if (existedBefore) {
+                try {
+                    // remove dir or file (if someone stored a single file path as "dir")
+                    const st = await stat(dir);
+                    const target = st.isDirectory() ? dir : dir; // same param, rm handles both
+                    await rm(target, { recursive: true, force: true });
+                    removed = !existsSync(dir);
+                } catch (e: any) {
+                    error = e?.message || String(e);
+                }
+            }
+
+            diagnostics.attempts.push({ dir, existedBefore, removed, error });
+        }
+    }
+
+    await Gallery.deleteOne({ _id: g._id });
+
+    // Return diagnostics so you can see exactly what happened
+    return NextResponse.json({ ok: true, diagnostics });
 }

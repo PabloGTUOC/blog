@@ -114,7 +114,7 @@ export default function ManageGalleriesPage() {
     };
 
     const del = async (id: string) => {
-        await fetch(`/api/galleries/${id}`, { method: "DELETE" });
+        await fetch(`/api/galleries/${id}?deleteFiles=1`, { method: "DELETE" });
         await search();
     };
 
@@ -162,6 +162,9 @@ export default function ManageGalleriesPage() {
                                     placeholder="Name"
                                 />
                                 <Uploader
+                                    multiple
+                                    accept="image/jpeg,image/png"
+                                    to={`/api/galleries/${r._id}/upload`}   // <— this finally matters
                                     onUploaded={(urls) =>
                                         setEdits((m) => ({
                                             ...m,
