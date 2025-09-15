@@ -44,7 +44,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
         { email: user.email },
         {
             $setOnInsert: {
-                name: (user.user_metadata as any)?.full_name || user.email,
+                name: (user.user_metadata as { full_name?: string } | null)?.full_name || user.email,
                 status: "pending",
             },
         },
@@ -125,6 +125,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
     return (
         <div className="space-y-4">
             <h1 className="retro-title">Family</h1>
+            <Link href="/family/galleries/new" className="retro-btn">New Gallery</Link>
 
             {/* Filter bar */}
             <form method="GET" className="grid gap-2 md:grid-cols-[150px_150px_auto_auto] items-end">
@@ -156,24 +157,29 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
             ) : (
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {cards.map((g) => (
-                        <Link key={g.id} href={g.href} className="no-underline">
-                            <Card className="p-0 overflow-hidden">
-                                <div className="relative aspect-[4/3] bg-[var(--muted)]">
-                                    {g.thumb ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={g.thumb} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
-                                    ) : (
-                                        <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)" }} />
-                                    )}
-                                </div>
-                                <div className="p-3">
-                                    <div className="font-medium leading-tight">{g.name}</div>
-                                    {(g.m || g.y) && (
-                                        <div className="text-xs text-[var(--subt)]">{formatEventDate(g.m, g.y)}</div>
-                                    )}
-                                </div>
-                            </Card>
-                        </Link>
+                        <div key={g.id}>
+                            <Link href={g.href} className="no-underline">
+                                <Card className="p-0 overflow-hidden">
+                                    <div className="relative aspect-[4/3] bg-[var(--muted)]">
+                                        {g.thumb ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={g.thumb} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
+                                        ) : (
+                                            <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)" }} />
+                                        )}
+                                    </div>
+                                    <div className="p-3">
+                                        <div className="font-medium leading-tight">{g.name}</div>
+                                        {(g.m || g.y) && (
+                                            <div className="text-xs text-[var(--subt)]">{formatEventDate(g.m, g.y)}</div>
+                                        )}
+                                    </div>
+                                </Card>
+                            </Link>
+                            <Link href={`/family/galleries/${g.id}/add`} className="block mt-1 text-xs underline">
+                                Add photos
+                            </Link>
+                        </div>
                     ))}
                 </div>
             )}
