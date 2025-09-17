@@ -3,6 +3,7 @@ import { Schema, model, models } from 'mongoose';
 const GallerySchema = new Schema(
   {
     name: { type: String, required: true },
+    slug: { type: String, required: true, trim: true, unique: true },
     images: { type: [String], default: [] },
     passwordHash: { type: String },
     tags: [{ type: Schema.Types.ObjectId, ref: 'Tag', default: [] }],
@@ -13,5 +14,6 @@ const GallerySchema = new Schema(
 );
 
 GallerySchema.index({ eventYear: 1, eventMonth: 1 });
+GallerySchema.index({ slug: 1 }, { unique: true });
 
 export default models.Gallery || model('Gallery', GallerySchema);
