@@ -9,8 +9,14 @@ import Client from "./Client";
 export const dynamic = "force-dynamic";
 type LeanGallery = { _id: Types.ObjectId; name: string; images: string[] };
 
-export default async function AddPhotosPage({ params }: { params: { id: string } }) {
-    const { id } = params;
+// 👇 params is async in Next 14/15 App Router; await it before use
+export default async function AddPhotosPage({
+                                                params,
+                                            }: {
+    params: Promise<{ id: string }>;
+}) {
+    const { id } = await params;
+
     const { error } = await getApprovedFamilyUser();
     if (error === "unauthorized") return <FamilyLogin />;
     if (error === "blocked") {
@@ -32,8 +38,12 @@ export default async function AddPhotosPage({ params }: { params: { id: string }
 
     await connect();
 
-    const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id").lean<{ _id: Types.ObjectId } | null>();
-    const g = await Gallery.findOne({ _id: id, tags: familyTag?._id }).lean<LeanGallery | null>();
+    const familyTag = await Tag.findOne({ name: /^family$/i })
+        .select("_id")
+        .lean<{ _id: Types.ObjectId } | null>();
+    const g = await Gallery.findOne({ _id: id, tags: familyTag?._id })
+        .lean<LeanGallery | null>();
+
     if (!g) {
         return (
             <div className="space-y-4">
