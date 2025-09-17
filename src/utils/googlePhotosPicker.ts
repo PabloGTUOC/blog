@@ -1,5 +1,6 @@
 const GAPI_SCRIPT_SRC = "https://apis.google.com/js/api.js";
 const GSI_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
+const PHOTOS_PICKER_SCRIPT_SRC = "https://photoslibrary.googleapis.com/v1/picker.js";
 const DEFAULT_SCOPES = ["https://www.googleapis.com/auth/photoslibrary.readonly"];
 const MEDIA_ITEMS_BATCH_GET = "https://photoslibrary.googleapis.com/v1/mediaItems:batchGet";
 const MEDIA_BATCH_LIMIT = 50;
@@ -67,6 +68,56 @@ type GooglePickerNamespace = {
     PhotosView?: new () => GooglePhotosView;
 };
 
+type GooglePhotosPickerDocumentFieldMap = {
+    ID?: string;
+    MEDIA_ITEM_ID?: string;
+    DESCRIPTION?: string;
+    FILENAME?: string;
+    MIME_TYPE?: string;
+    URL?: string;
+    BASE_URL?: string;
+};
+
+type GooglePhotosPickerResponseFieldMap = {
+    ACTION?: string;
+    DOCUMENTS?: string;
+};
+
+type GooglePhotosPickerViewMap = {
+    PHOTOS?: unknown;
+    PHOTOS_LIBRARY?: unknown;
+    MEDIA_ITEMS?: unknown;
+};
+
+type GooglePhotosPickerBuilder = {
+    setDeveloperKey?: (key: string) => GooglePhotosPickerBuilder;
+    setOAuthToken?: (token: string) => GooglePhotosPickerBuilder;
+    setAccessToken?: (token: string) => GooglePhotosPickerBuilder;
+    setTitle?: (title: string) => GooglePhotosPickerBuilder;
+    setSize?: (size: { width: number; height: number }) => GooglePhotosPickerBuilder;
+    setOrigin?: (origin: string) => GooglePhotosPickerBuilder;
+    setLocale?: (locale: string) => GooglePhotosPickerBuilder;
+    enableFeature?: (feature: unknown) => GooglePhotosPickerBuilder;
+    addView?: (view: unknown) => GooglePhotosPickerBuilder;
+    setCallback: (callback: (data: PickerResponse | Record<string, unknown>) => void) => GooglePhotosPickerBuilder;
+    build: () => GooglePhotosPickerInstance;
+};
+
+type GooglePhotosPickerInstance = {
+    show?: () => void;
+    hide?: () => void;
+    setVisible?: (visible: boolean) => void;
+};
+
+type GooglePhotosPickerNamespace = {
+    PickerBuilder?: new () => GooglePhotosPickerBuilder;
+    Feature?: GooglePickerFeatureMap;
+    Action?: GooglePickerActionMap & { ERROR?: string };
+    ResponseField?: GooglePhotosPickerResponseFieldMap;
+    DocumentField?: GooglePhotosPickerDocumentFieldMap;
+    View?: GooglePhotosPickerViewMap;
+};
+
 type GoogleOauth2Namespace = {
     initTokenClient: (config: {
         client_id: string;
@@ -81,6 +132,7 @@ type GoogleAccountsNamespace = {
 
 type GoogleNamespace = {
     picker?: GooglePickerNamespace;
+    photos?: { picker?: GooglePhotosPickerNamespace };
     accounts?: GoogleAccountsNamespace;
 };
 
@@ -142,6 +194,7 @@ declare global {
 let gapiInitPromise: Promise<void> | null = null;
 let gapiApiKey: string | null = null;
 let gsiInitPromise: Promise<void> | null = null;
+let googlePhotosPickerPromise: Promise<void> | null = null;
 let tokenClient: TokenClient | null = null;
 let tokenClientScope: string | null = null;
 let tokenClientId: string | null = null;
@@ -235,6 +288,20 @@ async function ensureGsi(): Promise<void> {
     await gsiInitPromise;
 }
 
+async function ensureGooglePhotosPicker(apiKey: string): Promise<void> {
+    if (!googlePhotosPickerPromise) {
+        const url = new URL(PHOTOS_PICKER_SCRIPT_SRC);
+        if (apiKey) {
+            url.searchParams.set("key", apiKey);
+        }
+        googlePhotosPickerPromise = loadScript(url.toString()).catch((err) => {
+            googlePhotosPickerPromise = null;
+            throw err;
+        });
+    }
+    await googlePhotosPickerPromise;
+}
+
 async function getAccessToken(clientId: string, scopes: string[]): Promise<string> {
     await ensureGsi();
     const scopeString = scopes.join(" ");
@@ -290,7 +357,134 @@ function getPhotosView(google: GoogleNamespace | undefined): unknown {
     return null;
 }
 
-async function openPicker(google: GoogleNamespace | undefined, apiKey: string, token: string): Promise<PickerResponse> {
+function getPhotosPickerView(photosPicker: GooglePhotosPickerNamespace | undefined): unknown {
+    if (!photosPicker?.View) return null;
+    const { View } = photosPicker;
+    if (View.PHOTOS) return View.PHOTOS;
+    if (View.PHOTOS_LIBRARY) return View.PHOTOS_LIBRARY;
+    if (View.MEDIA_ITEMS) return View.MEDIA_ITEMS;
+    return null;
+}
+
+function normalizePhotosPickerDocument(
+    doc: Record<string, unknown>,
+    photosPicker: GooglePhotosPickerNamespace | undefined
+): PickerDocument {
+    const fields = photosPicker?.DocumentField;
+    const idKey = fields?.ID || fields?.MEDIA_ITEM_ID || "id";
+    const nameKey = fields?.FILENAME || fields?.DESCRIPTION || "name";
+    const mimeKey = fields?.MIME_TYPE || "mimeType";
+    const urlKey = fields?.URL || fields?.BASE_URL || "url";
+
+    const idValue = doc[idKey];
+    const nameValue = doc[nameKey];
+    const mimeValue = doc[mimeKey];
+    const urlValue = doc[urlKey];
+
+    const normalized: PickerDocument = {
+        ...doc,
+    } as PickerDocument;
+
+    if (typeof idValue === "string") {
+        normalized.id = idValue;
+    }
+    if (typeof nameValue === "string") {
+        normalized.name = nameValue;
+    }
+    if (typeof mimeValue === "string") {
+        normalized.mimeType = mimeValue;
+    }
+    if (typeof urlValue === "string") {
+        normalized.url = urlValue;
+    }
+
+    return normalized;
+}
+
+function normalizePhotosPickerResponse(
+    data: Record<string, unknown>,
+    photosPicker: GooglePhotosPickerNamespace | undefined
+): PickerResponse {
+    const responseFields = photosPicker?.ResponseField;
+    const actionKey = responseFields?.ACTION || "action";
+    const docsKey = responseFields?.DOCUMENTS || "docs";
+    const actionValue = data[actionKey];
+    const rawDocs = ensureArray(data[docsKey] as PickerDocument[] | undefined);
+    const docs = rawDocs.map((doc) => normalizePhotosPickerDocument(doc as Record<string, unknown>, photosPicker));
+
+    return {
+        action: typeof actionValue === "string" ? actionValue : undefined,
+        docs,
+    };
+}
+
+async function openPhotosPicker(
+    photosPicker: GooglePhotosPickerNamespace,
+    apiKey: string,
+    token: string
+): Promise<PickerResponse> {
+    const PickerBuilder = photosPicker.PickerBuilder;
+    if (!PickerBuilder) {
+        throw new Error("Google Photos Picker is not available.");
+    }
+
+    const view = getPhotosPickerView(photosPicker);
+
+    return new Promise<PickerResponse>((resolve) => {
+        let pickerInstance: GooglePhotosPickerInstance | null = null;
+        const builder = new PickerBuilder();
+        if (builder.setDeveloperKey) builder.setDeveloperKey(apiKey);
+        if (builder.setOAuthToken) builder.setOAuthToken(token);
+        if (builder.setAccessToken) builder.setAccessToken(token);
+        if (builder.setOrigin && typeof window !== "undefined" && window.location) {
+            builder.setOrigin(window.location.origin);
+        }
+        if (builder.setLocale && typeof navigator !== "undefined") {
+            builder.setLocale(navigator.language || "en");
+        }
+        if (builder.enableFeature && photosPicker.Feature?.MULTISELECT_ENABLED) {
+            builder.enableFeature(photosPicker.Feature.MULTISELECT_ENABLED);
+        }
+        if (view && builder.addView) {
+            if (typeof view === "function") {
+                try {
+                    builder.addView(new (view as new () => unknown)());
+                } catch {
+                    builder.addView(view);
+                }
+            } else {
+                builder.addView(view);
+            }
+        }
+
+        builder.setCallback((raw: PickerResponse | Record<string, unknown>) => {
+            if (!raw) return;
+            const normalized = normalizePhotosPickerResponse(raw as Record<string, unknown>, photosPicker);
+            const actions = photosPicker.Action || {};
+            const picked = actions.PICKED || "picked";
+            const cancelled = actions.CANCEL || "cancel";
+            const empty = actions.EMPTY || "empty";
+            const action = normalized.action;
+            if (action === picked || action === cancelled || action === empty) {
+                resolve(normalized);
+                if (pickerInstance?.hide) {
+                    pickerInstance.hide();
+                } else if (pickerInstance?.setVisible) {
+                    pickerInstance.setVisible(false);
+                }
+            }
+        });
+
+        pickerInstance = builder.build();
+        if (pickerInstance.show) {
+            pickerInstance.show();
+        } else if (pickerInstance.setVisible) {
+            pickerInstance.setVisible(true);
+        }
+    });
+}
+
+async function openLegacyPicker(google: GoogleNamespace | undefined, apiKey: string, token: string): Promise<PickerResponse> {
     const pickerNamespace = google?.picker;
     if (!pickerNamespace?.PickerBuilder) {
         throw new Error("Google Picker is not available.");
@@ -331,6 +525,14 @@ async function openPicker(google: GoogleNamespace | undefined, apiKey: string, t
     });
 }
 
+async function openPicker(google: GoogleNamespace | undefined, apiKey: string, token: string): Promise<PickerResponse> {
+    const photosPicker = google?.photos?.picker;
+    if (photosPicker?.PickerBuilder) {
+        return openPhotosPicker(photosPicker, apiKey, token);
+    }
+    return openLegacyPicker(google, apiKey, token);
+}
+
 function ensureFileName(name: string | undefined, mimeType?: string): string {
     const base = (name || "").trim();
     if (base && /\.[A-Za-z0-9]{2,8}$/.test(base)) {
@@ -355,8 +557,9 @@ function toDownloadUrl(baseUrl: string): string {
 async function fetchMetadata(ids: string[], token: string): Promise<Map<string, MediaItemMeta>> {
     const results = new Map<string, MediaItemMeta>();
     const headers = { Authorization: `Bearer ${token}` };
-    for (let i = 0; i < ids.length; i += MEDIA_BATCH_LIMIT) {
-        const chunk = ids.slice(i, i + MEDIA_BATCH_LIMIT);
+    const uniqueIds = Array.from(new Set(ids));
+    for (let i = 0; i < uniqueIds.length; i += MEDIA_BATCH_LIMIT) {
+        const chunk = uniqueIds.slice(i, i + MEDIA_BATCH_LIMIT);
         const params = new URLSearchParams();
         chunk.forEach((id) => params.append("mediaItemIds", id));
         const resp = await fetch(`${MEDIA_ITEMS_BATCH_GET}?${params.toString()}`, { headers });
@@ -385,10 +588,11 @@ async function downloadPhoto(
     metaMap: Map<string, MediaItemMeta>,
     token: string
 ): Promise<File> {
-    const id = doc.id;
+    const id = getDocumentId(doc);
     if (!id) throw new Error("Missing photo identifier.");
     const metadata = metaMap.get(id);
-    const sourceUrl = metadata?.baseUrl || doc.url;
+    const rawBaseUrl = typeof doc.baseUrl === "string" ? doc.baseUrl : undefined;
+    const sourceUrl = rawBaseUrl || metadata?.baseUrl || doc.url;
     if (!sourceUrl) throw new Error("Google Photo is missing a download URL.");
     const downloadUrl = toDownloadUrl(sourceUrl);
     const resp = await fetch(downloadUrl, {
@@ -403,6 +607,17 @@ async function downloadPhoto(
     return new File([blob], filename, { type: mimeType || blob.type || "image/jpeg" });
 }
 
+function getDocumentId(doc: PickerDocument): string | undefined {
+    if (typeof doc.id === "string") return doc.id;
+    const mediaItemId = doc.mediaItemId;
+    if (typeof mediaItemId === "string") return mediaItemId;
+    const altId = doc.mediaItemResourceName || doc.resourceName || doc.url;
+    if (typeof altId === "string" && /^items\//.test(altId)) {
+        return altId.replace(/^items\//, "");
+    }
+    return undefined;
+}
+
 export async function pickGooglePhotos({ clientId, apiKey, scopes }: GooglePhotosPickerOptions): Promise<GooglePhotosPickResult> {
     if (!clientId || !apiKey) {
         throw new Error("Google Photos configuration is incomplete.");
@@ -412,20 +627,26 @@ export async function pickGooglePhotos({ clientId, apiKey, scopes }: GooglePhoto
     }
 
     const scopeList = scopes && scopes.length > 0 ? scopes : DEFAULT_SCOPES;
-    await ensureGapi(apiKey);
-    const token = await getAccessToken(clientId, scopeList);
+    await ensureGooglePhotosPicker(apiKey);
     const google = window.google;
+    if (!google?.photos?.picker) {
+        await ensureGapi(apiKey);
+    }
+    const token = await getAccessToken(clientId, scopeList);
     const pickerResponse = await openPicker(google, apiKey, token);
     const action = pickerResponse.action;
     const docs = ensureArray(pickerResponse.docs).filter((doc) => typeof doc.id === "string");
 
-    const pickerActions = google?.picker?.Action;
+    const pickerActions = google?.photos?.picker?.Action || google?.picker?.Action;
     const pickedValue = pickerActions?.PICKED || "picked";
     if (!docs.length || action !== pickedValue) {
         return { files: [], failures: 0 };
     }
 
-    const metaMap = await fetchMetadata(docs.map((doc) => doc.id as string), token);
+    const metaIds = docs
+        .map((doc) => getDocumentId(doc))
+        .filter((value): value is string => typeof value === "string" && value.length > 0);
+    const metaMap = metaIds.length > 0 ? await fetchMetadata(metaIds, token) : new Map();
     const downloads = await Promise.allSettled(docs.map((doc) => downloadPhoto(doc, metaMap, token)));
     const files: File[] = [];
     let failures = 0;
