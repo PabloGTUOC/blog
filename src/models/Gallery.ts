@@ -14,6 +14,7 @@ const GallerySchema = new Schema(
 );
 
 GallerySchema.index({ eventYear: 1, eventMonth: 1 });
-GallerySchema.index({ slug: 1 }, { unique: true });
+//GallerySchema.index({ slug: 1 }, { unique: true });
 
 export default models.Gallery || model('Gallery', GallerySchema);
+

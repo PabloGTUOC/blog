@@ -16,7 +16,6 @@ export default function Client({ id, name, initialImages }: ClientProps) {
     const [waiting, setWaiting] = useState<{ uri: string } | null>(null);
     const abortRef = useRef<AbortController | null>(null);
 
-    // Abort polling if the component unmounts
     useEffect(() => {
         return () => abortRef.current?.abort();
     }, []);
@@ -26,10 +25,12 @@ export default function Client({ id, name, initialImages }: ClientProps) {
 
         const form = new FormData();
         files.forEach((f) => form.append("files", f)); // server expects "files"
-        const res = await fetch(`/api/family/galleries/${id}/upload`, { method: "POST", body: form });
+        const res = await fetch(`/api/family/galleries/${id}/upload`, {
+            method: "POST",
+            body: form,
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || "Upload failed");
-        // be tolerant to response shapes: {urls: string[]} or { urls }
         const urls: string[] = Array.isArray(data?.urls) ? data.urls : [];
         return { urls };
     }
@@ -52,11 +53,8 @@ export default function Client({ id, name, initialImages }: ClientProps) {
             window.open(pickerUri, "_blank", "noopener,noreferrer");
 
             // 3) wait for Done, then download files
-            const { files, failures } = await finish(sessionId, {
-                signal: controller.signal,
-                timeoutMs: 10 * 60 * 1000,
-                intervalMs: 1500,
-            });
+            // NOTE: your finish() function accepts ONLY (sessionId). Options were removed.
+            const { files, failures } = await finish(sessionId);
 
             // This uploader only accepts images; skip videos if any
             const imagesOnly = files.filter((f) => f.type.startsWith("image/"));
@@ -73,6 +71,8 @@ export default function Client({ id, name, initialImages }: ClientProps) {
                 alert(parts.join("; "));
             }
         } catch (err) {
+            // AbortError will still be caught if start/finish uses the signal internally;
+            // otherwise it’s harmless to keep.
             if (!(err instanceof DOMException && err.name === "AbortError")) {
                 console.error(err);
                 alert(err instanceof Error ? err.message : String(err));
@@ -132,12 +132,7 @@ export default function Client({ id, name, initialImages }: ClientProps) {
                             A picker opened in a new tab. If you’re on desktop, open this link on your phone,
                             select photos, and tap <b>Done</b>:
                         </p>
-                        <a
-                            href={waiting.uri}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="break-all underline text-blue-700"
-                        >
+                        <a href={waiting.uri} target="_blank" rel="noreferrer" className="break-all underline text-blue-700">
                             {waiting.uri}
                         </a>
                         <div className="flex gap-2 pt-2">

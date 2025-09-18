@@ -1,22 +1,35 @@
-import { NextResponse } from "next/server";
+// src/app/api/tags/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import connect from "@/lib/mongodb";
 import Tag from "@/models/Tag";
 
-type Ctx = { params: { id: string } };
-
-export async function PUT(req: Request, { params }: Ctx) {
-    await connect();
-    const body = await req.json();
-    const update: any = {};
-    if (typeof body.name === "string") update.name = body.name.trim();
-    if (typeof body.color === "string") update.color = body.color;
-    const tag = await Tag.findByIdAndUpdate(params.id, { $set: update }, { new: true });
-    return NextResponse.json(tag);
+function getId(ctx: any): string {
+    const raw = ctx?.params?.id;
+    return Array.isArray(raw) ? raw[0] : (raw as string);
 }
 
-export async function DELETE(_req: Request, { params }: Ctx) {
+export async function PUT(req: NextRequest, ctx: any) {
     await connect();
-    await Tag.findByIdAndDelete(params.id);
-    // Optional: clean up references later if you want.
+
+    const body = (await req.json()) as Partial<{ name: string; color: string }>;
+    const update: Partial<{ name: string; color: string }> = {};
+
+    if (typeof body.name === "string") update.name = body.name.trim();
+    if (typeof body.color === "string") update.color = body.color;
+
+    const id = getId(ctx);
+    const tag = await Tag.findByIdAndUpdate(id, { $set: update }, { new: true });
+
+    if (!tag) return NextResponse.json({ error: "Tag not found" }, { status: 404 });
+    return NextResponse.json({ data: tag });
+}
+
+export async function DELETE(_req: NextRequest, ctx: any) {
+    await connect();
+
+    const id = getId(ctx);
+    const deleted = await Tag.findByIdAndDelete(id);
+
+    if (!deleted) return NextResponse.json({ error: "Tag not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
 }

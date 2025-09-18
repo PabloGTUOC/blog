@@ -84,11 +84,8 @@ export default function Form() {
             }
 
             // 3) Poll until user taps "Done" in Google Photos, then download
-            const { files: importedFiles, failures } = await finish(sessionId, {
-                signal: controller.signal,
-                timeoutMs: 10 * 60 * 1000, // 10 minutes, you can adjust
-                intervalMs: 1500,
-            });
+            const { files: importedFiles, failures } = await finish(sessionId);
+
 
             if (importedFiles.length) setFiles((prev) => prev.concat(importedFiles));
             if (failures) alert(`${failures} photo${failures === 1 ? '' : 's'} failed to import.`);

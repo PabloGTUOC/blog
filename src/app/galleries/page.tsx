@@ -1,15 +1,23 @@
+// src/app/galleries/page.tsx
 import Link from "next/link";
 import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
-import "@/models/Tag";
 import { Card } from "@/components/ui/Card";
 import { Types } from "mongoose";
 import TagFilterDropdown from "@/components/TagFilterDropdown";
 
-
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
+
+type LeanGalleryCard = {
+    _id: Types.ObjectId;
+    name: string;
+    images: string[];
+    eventMonth?: number;
+    eventYear?: number;
+    tags?: LeanTag[]; // populated shape after .populate("tags")
+};
 
 const MONTHS = [
     { v: 1,  n: "Jan" }, { v: 2,  n: "Feb" }, { v: 3,  n: "Mar" },
@@ -43,7 +51,9 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
     await connect();
 
     // Find the family tag id (if it exists)
-    const familyTag = await Tag.findOne({ name: /^family$/i }).select("_id name").lean<{ _id: Types.ObjectId } | null>();
+    const familyTag = await Tag.findOne({ name: /^family$/i })
+        .select("_id name")
+        .lean<{ _id: Types.ObjectId } | null>();
     const familyId = familyTag?._id?.toString();
 
     // Parse filters
@@ -51,13 +61,13 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
     const y = Number(sp.y ?? "");
     const tagFilterIds = toArray(sp.t).filter(Boolean); // array of tag ids (strings)
     const validMonth = Number.isInteger(m) && m >= 1 && m <= 12 ? m : undefined;
-    const validYear = Number.isInteger(y) && y >= 1900 && y <= 3000 ? y : undefined;
+    const validYear  = Number.isInteger(y) && y >= 1900 && y <= 3000 ? y : undefined;
 
     // Build criteria: exclude 'family'; include tag filters if provided
-    const and: any[] = [];
+    const and: Record<string, unknown>[] = [];
     if (validMonth) and.push({ eventMonth: validMonth });
-    if (validYear) and.push({ eventYear: validYear });
-    if (familyId) and.push({ tags: { $nin: [familyId] } });
+    if (validYear)  and.push({ eventYear: validYear });
+    if (familyId)   and.push({ tags: { $nin: [familyId] } });
     if (tagFilterIds.length > 0) and.push({ tags: { $all: tagFilterIds } });
     const criteria = and.length ? { $and: and } : {};
 
@@ -72,7 +82,7 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
         .filter((v: number | null) => typeof v === "number")
         .sort((a: number, b: number) => b - a) as number[];
 
-    // Query galleries
+    // Query galleries (NOTE the awaited find + typed lean)
     const raw = await Gallery.find(
         criteria,
         { name: 1, images: 1, tags: 1, eventMonth: 1, eventYear: 1, createdAt: 1 }
@@ -80,18 +90,25 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
         .sort({ eventYear: -1, eventMonth: -1, createdAt: -1 })
         .limit(60)
         .populate("tags", "name color")
-        .lean<{ _id: Types.ObjectId; name: string; images: string[]; eventMonth?: number; eventYear?: number; tags?: (Types.ObjectId | LeanTag)[] }[]>();
+        .lean<LeanGalleryCard[]>(); // <- populated tags as LeanTag[]
 
     const cards = raw.map((g) => {
         const id = g._id.toString();
         const thumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
-        const tags =
-            Array.isArray(g.tags)
-                ? (g.tags.map((t) =>
-                    typeof t === "object" ? { id: t._id.toString(), name: t.name, color: t.color } : null
-                ).filter(Boolean) as { id: string; name: string; color?: string }[])
-                : [];
-        return { id, name: g.name ?? "(untitled)", thumb, href: `/galleries/${id}`, m: g.eventMonth, y: g.eventYear, tags };
+        const tags = (g.tags ?? []).map((t) => ({
+            id: t._id.toString(),
+            name: t.name,
+            color: t.color,
+        }));
+        return {
+            id,
+            name: g.name ?? "(untitled)",
+            thumb,
+            href: `/galleries/${id}`,
+            m: g.eventMonth,
+            y: g.eventYear,
+            tags,
+        };
     });
 
     return (
@@ -125,7 +142,7 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
                     />
                 </div>
                 <button type="submit" className="retro-btn">Filter</button>
-                <a href="/galleries" className="retro-btn">Clear</a>
+                <Link href="/galleries" className="retro-btn">Clear</Link>
             </form>
 
             {/* Grid */}
@@ -141,7 +158,13 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img src={g.thumb} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
                                     ) : (
-                                        <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)" }} />
+                                        <div
+                                            className="w-full h-full"
+                                            style={{
+                                                background:
+                                                    "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)",
+                                            }}
+                                        />
                                     )}
                                     {/* small chips */}
                                     {g.tags.length > 0 && (
@@ -162,7 +185,15 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
                         </span>
                                             ))}
                                             {g.tags.length > 3 && (
-                                                <span className="px-2 py-0.5 text-[10px] leading-tight border rounded-[2px]" style={{ backgroundColor: "var(--surface)", color: "var(--text)", borderColor: "var(--border)", boxShadow: "2px 2px 0 0 rgba(0,0,0,0.85)" }}>
+                                                <span
+                                                    className="px-2 py-0.5 text-[10px] leading-tight border rounded-[2px]"
+                                                    style={{
+                                                        backgroundColor: "var(--surface)",
+                                                        color: "var(--text)",
+                                                        borderColor: "var(--border)",
+                                                        boxShadow: "2px 2px 0 0 rgba(0,0,0,0.85)",
+                                                    }}
+                                                >
                           +{g.tags.length - 3}
                         </span>
                                             )}

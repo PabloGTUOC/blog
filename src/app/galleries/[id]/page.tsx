@@ -1,127 +1,99 @@
-import connect from '@/lib/mongodb';
-import Gallery from '@/models/Gallery';
-import '@/models/Tag';
-import bcrypt from 'bcryptjs';
-import { notFound } from 'next/navigation';
-import { Card } from '@/components/ui/Card';
-import { Types } from 'mongoose';
-import GalleryViewer from "@/components/GalleryViewer";
+// src/app/galleries/[id]/page.tsx
+import connect from "@/lib/mongodb";
+import Gallery from "@/models/Gallery";
+import "@/models/Tag"; // ensure schema for populate
+import { Types } from "mongoose";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Card } from "@/components/ui/Card";
 
+// Types
 type Params = Promise<{ id: string }>;
-type SearchParams = Promise<{ password?: string | string[] }>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
+type LeanGallery = {
+    _id: Types.ObjectId;
+    name: string;
+    description?: string;
+    images: string[];
+    tags?: (Types.ObjectId | LeanTag)[];
+    eventMonth?: number;
+    eventYear?: number;
+    createdAt?: Date;
+};
 
-function pickTextColor(hex?: string) {
-    if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) return "var(--text)";
-    const h = hex.replace("#", "");
-    const r = parseInt(h.slice(0, 2), 16) / 255;
-    const g = parseInt(h.slice(2, 4), 16) / 255;
-    const b = parseInt(h.slice(4, 6), 16) / 255;
-    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    return L > 0.55 ? "#000" : "#fff";
-}
-
-function formatEventDate(month?: number, year?: number) {
+function formatEventDate(m?: number, y?: number) {
     const names = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    if (month && year) return `${names[month]} ${year}`;
-    if (month) return names[month];
-    if (year) return String(year);
+    if (m && y) return `${names[m]} ${y}`;
+    if (m) return names[m];
+    if (y) return String(y);
     return "";
 }
 
-export default async function GalleryPage({
-                                              params,
-                                              searchParams,
-                                          }: {
-    params: Params;
-    searchParams: SearchParams;
-}) {
+export default async function GalleryPage({ params }: { params: Params }) {
     const { id } = await params;
-    const sp = await searchParams;
-    const providedParam = sp.password;
-    const provided = Array.isArray(providedParam) ? providedParam[0] : (providedParam ?? '');
 
     await connect();
 
     const gallery = await Gallery.findById(id)
-        .select('name images passwordHash tags eventMonth eventYear')
-        .populate('tags', 'name color')
-        .lean<{ _id: Types.ObjectId; name: string; images: string[]; passwordHash?: string; tags?: (Types.ObjectId | LeanTag)[]; eventMonth?: number; eventYear?: number; }>();
+        .select("name description images tags eventMonth eventYear createdAt")
+        .populate("tags", "name color")
+        .lean<Omit<LeanGallery, "tags"> & { tags?: LeanTag[] }>(); // <- populated shape
 
     if (!gallery) return notFound();
 
-    const hasPassword = Boolean(gallery.passwordHash);
-    if (hasPassword) {
-        const ok = provided && (await bcrypt.compare(provided, gallery.passwordHash!));
-        if (!ok) {
-            // Protected screen
-            return (
-                <div className="p-4 space-y-3">
-                    <Card className="p-4 space-y-3 gallery-card">
-                        <h1 className="page-title" style={{ color: "var(--accent)", textShadow: "3px 3px 0 rgba(0,0,0,.8)" }}>
-                            {gallery.name}
-                        </h1>
-                        <p className="text-sm">This gallery is protected.</p>
-                        <form method="GET" className="flex items-center gap-2">
-                            <input type="password" name="password" placeholder="Password" className="retro-input" required />
-                            <button type="submit" className="retro-btn">Enter</button>
-                        </form>
-                    </Card>
-                </div>
-            );
-        }
-    }
-
-    const images: string[] = Array.isArray(gallery.images) ? gallery.images : [];
-
-    // Gather tags for badge display
-    const tags =
-        Array.isArray(gallery.tags)
-            ? (gallery.tags
-                .map((t) => (typeof t === 'object' ? { id: t._id.toString(), name: t.name, color: t.color } : null))
-                .filter(Boolean) as { id: string; name: string; color?: string }[])
-            : [];
+    const tags = (gallery.tags ?? []).map((t) => ({
+        id: t._id.toString(),
+        name: t.name,
+        color: t.color,
+    }));
 
     return (
-        <div className="p-4">
-            <Card className="p-0 overflow-hidden gallery-card">
-                <header className="px-4 md:px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-                    <h1
-                        className="page-title leading-none tracking-tight"
-                        style={{ color: "var(--accent)", textShadow: "3px 3px 0 rgba(0,0,0,.8)" }}
-                    >
-                        {gallery.name}
-                    </h1>
+        <div className="p-4 space-y-4">
+            <header className="flex items-center justify-between">
+                <h1 className="retro-title">{gallery.name}</h1>
+                <Link href={`/family/galleries/${gallery._id.toString()}/add`} className="retro-btn">
+                    Add photos
+                </Link>
+            </header>
 
-                    {/* NEW: subtitle with Month/Year if present */}
-                    {!!(gallery.eventMonth || gallery.eventYear) && (
-                        <div className="gallery-subtitle mt-1">
-                            {formatEventDate(gallery.eventMonth, gallery.eventYear)}
-                        </div>
-                    )}
-                    {/* existing tags block remains the same */}
-                    {tags.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                            {tags.map((t) => (
-                                <span
-                                    key={t.id}
-                                    className="retro-chip"
-                                    style={{ backgroundColor: t.color || "var(--surface)", color: pickTextColor(t.color), borderColor: "var(--border)" }}
-                                    title={t.name}
-                                    >
-                                    {t.name}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </header>
+            <div className="text-sm text-[var(--subt)] flex items-center gap-3">
+                {(gallery.eventMonth || gallery.eventYear) && (
+                    <span className="retro-label">{formatEventDate(gallery.eventMonth, gallery.eventYear)}</span>
+                )}
+                {tags.length > 0 && (
+                    <span className="flex flex-wrap gap-1">
+            {tags.map((t) => (
+                <span
+                    key={t.id}
+                    className="retro-chip"
+                    style={{
+                        backgroundColor: t.color || "var(--surface)",
+                        color: "#000",
+                        borderColor: "var(--border)",
+                    }}
+                    title={t.name}
+                >
+                {t.name}
+              </span>
+            ))}
+          </span>
+                )}
+            </div>
 
-                <div className="p-4 md:p-6">
-                    <div className="p-4 md:p-6">
-                        <GalleryViewer images={images} />
-                    </div>
+            {gallery.description && (
+                <Card className="p-3 whitespace-pre-wrap">{gallery.description}</Card>
+            )}
+
+            {Array.isArray(gallery.images) && gallery.images.length > 0 ? (
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                    {gallery.images.map((src, i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={i} src={src} alt={`img-${i}`} className="w-full h-auto object-cover rounded" loading="lazy" />
+                    ))}
                 </div>
-            </Card>
+            ) : (
+                <div className="text-sm text-[var(--subt)]">No images yet.</div>
+            )}
         </div>
     );
 }

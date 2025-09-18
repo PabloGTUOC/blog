@@ -2,7 +2,6 @@
 import Link from "next/link";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
-import "@/models/Tag";
 import { Card } from "@/components/ui/Card";
 import FamilyLogin from "@/components/FamilyLogin";
 import { Types } from "mongoose";
@@ -13,12 +12,18 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 
+// tiny type guard so TS knows when a tag is populated
+function isLeanTag(v: unknown): v is LeanTag {
+    return !!v && typeof v === "object" && "_id" in v && "name" in v;
+}
+
 const MONTHS = [
     { v: 1, n: "Jan" }, { v: 2, n: "Feb" }, { v: 3, n: "Mar" },
     { v: 4, n: "Apr" }, { v: 5, n: "May" }, { v: 6, n: "Jun" },
     { v: 7, n: "Jul" }, { v: 8, n: "Aug" }, { v: 9, n: "Sep" },
     { v: 10, n: "Oct" }, { v: 11, n: "Nov" }, { v: 12, n: "Dec" },
 ];
+
 function formatEventDate(m?: number, y?: number) {
     const names = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     if (m && y) return `${names[m]} ${y}`;
@@ -52,6 +57,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
     const familyTag = await Tag.findOne({ name: /^family$/i })
         .select("_id name")
         .lean<{ _id: Types.ObjectId; name: string } | null>();
+
     const familyId = familyTag?._id;
     if (!familyId) {
         return (
@@ -91,13 +97,26 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
     const cards = raw.map((g) => {
         const id = g._id.toString();
         const thumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
+
+        // Narrow tags safely (ObjectId vs populated)
         const tags =
             Array.isArray(g.tags)
-                ? (g.tags.map((t) =>
-                    typeof t === "object" ? { id: t._id.toString(), name: t.name, color: t.color } : null
-                ).filter(Boolean) as { id: string; name: string; color?: string }[])
+                ? (g.tags
+                    .map((t) =>
+                        isLeanTag(t) ? { id: t._id.toString(), name: t.name, color: t.color } : null
+                    )
+                    .filter(Boolean) as { id: string; name: string; color?: string }[])
                 : [];
-        return { id, name: g.name ?? "(untitled)", thumb, href: `/galleries/${id}`, m: g.eventMonth, y: g.eventYear, tags };
+
+        return {
+            id,
+            name: g.name ?? "(untitled)",
+            thumb,
+            href: `/galleries/${id}`,
+            m: g.eventMonth,
+            y: g.eventYear,
+            tags,
+        };
     });
 
     return (
@@ -126,7 +145,7 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
                     </select>
                 </div>
                 <button type="submit" className="retro-btn">Filter</button>
-                <a href="/family" className="retro-btn">Clear</a>
+                <Link href="/family" className="retro-btn">Clear</Link>
             </form>
 
             {/* Grid */}
@@ -143,7 +162,13 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img src={g.thumb} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
                                         ) : (
-                                            <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)" }} />
+                                            <div
+                                                className="w-full h-full"
+                                                style={{
+                                                    background:
+                                                        "repeating-linear-gradient(45deg, var(--muted) 0 8px, rgba(0,0,0,.05) 8px 16px)",
+                                                }}
+                                            />
                                         )}
                                     </div>
                                     <div className="p-3">

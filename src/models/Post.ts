@@ -5,6 +5,7 @@ export interface PostDoc {
   title: string;
   content: string;
   gallery?: ObjectId;
+  tags?: ObjectId[];
 }
 
 const PostSchema = new Schema<PostDoc>(

@@ -1,3 +1,4 @@
+// src/app/blog/[id]/page.tsx
 import connect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import "@/models/Gallery"; // for populate
@@ -6,10 +7,14 @@ import { Types } from "mongoose";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import type { ReactNode } from "react";
 
+// ---- Types ----
 type Params = Promise<{ id: string }>;
+
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 type LeanGallery = { _id: Types.ObjectId; name: string; images?: string[] };
+
 type LeanPost = {
     _id: Types.ObjectId;
     title: string;
@@ -19,15 +24,25 @@ type LeanPost = {
     createdAt?: Date;
 };
 
-// Render markdown with links as <a> tags
-function renderWithLinks(text: string): React.ReactNode {
-    const nodes: React.ReactNode[] = [];
+// ---- Type guards ----
+function isLeanTag(v: unknown): v is LeanTag {
+    return !!v && typeof v === "object" && "_id" in v && "name" in v;
+}
+function isLeanGallery(v: unknown): v is LeanGallery {
+    return !!v && typeof v === "object" && "_id" in v && "name" in v;
+}
+
+// ---- Utilities ----
+
+// Render markdown-ish text with raw URLs turned into <a> links
+function renderWithLinks(text: string): ReactNode {
+    const nodes: ReactNode[] = [];
     const urlRe = /\bhttps?:\/\/[^\s<>()]+/gi; // simple http/https matcher
     let last = 0;
     for (const match of text.matchAll(urlRe)) {
         const start = match.index ?? 0;
         const end = start + match[0].length;
-        if (start > last) nodes.push(text.slice(last, start));       // plain text chunk
+        if (start > last) nodes.push(text.slice(last, start)); // plain text chunk
         const href = match[0];
         nodes.push(
             <a
@@ -51,11 +66,13 @@ function pickTextColor(hex?: string) {
     const r = parseInt(h.slice(0, 2), 16) / 255;
     const g = parseInt(h.slice(2, 4), 16) / 255;
     const b = parseInt(h.slice(4, 6), 16) / 255;
-    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b; // luminance
+    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b; // relative luminance
     return L > 0.55 ? "#000" : "#fff";
 }
 
+// ---- Page ----
 export default async function PostPage({ params }: { params: Params }) {
+    // Next 15 provides params as a Promise in RSC; await it before using.
     const { id } = await params;
 
     await connect();
@@ -68,19 +85,18 @@ export default async function PostPage({ params }: { params: Params }) {
 
     if (!post) return notFound();
 
-    // derive gallery refs safely
-    const gallery =
-        post.gallery && typeof post.gallery === "object" ? (post.gallery as LeanGallery) : null;
+    // Normalize gallery
+    const gallery = isLeanGallery(post.gallery) ? post.gallery : null;
     const galleryId = gallery?._id?.toString?.();
     const galleryName = gallery?.name ?? null;
     const galleryImages = Array.isArray(gallery?.images) ? gallery.images : [];
 
-    // tags normalized
+    // Normalize tags (filter out ObjectIds)
     const tags =
         Array.isArray(post.tags)
             ? (post.tags
                 .map((t) =>
-                    typeof t === "object"
+                    isLeanTag(t)
                         ? { id: t._id.toString(), name: t.name, color: t.color }
                         : null
                 )
@@ -89,8 +105,13 @@ export default async function PostPage({ params }: { params: Params }) {
 
     const titleShadow = "3px 3px 0 rgba(0,0,0,.8)";
 
-    const created =
-        post.createdAt ? new Date(post.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : undefined;
+    const created = post.createdAt
+        ? new Date(post.createdAt).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+        })
+        : undefined;
 
     return (
         <div className="p-4">
@@ -99,10 +120,7 @@ export default async function PostPage({ params }: { params: Params }) {
                 <header className="px-4 md:px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
                     <h1
                         className="post-title font-[var(--font-vt323)] leading-none tracking-tight"
-                        style={{
-                            color: "var(--accent)",
-                            textShadow: titleShadow,
-                        }}
+                        style={{ color: "var(--accent)", textShadow: titleShadow }}
                     >
                         {post.title}
                     </h1>
@@ -112,7 +130,12 @@ export default async function PostPage({ params }: { params: Params }) {
                             <div className="flex gap-2">
                                 {galleryImages.slice(0, 4).map((src, i) => (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img key={i} src={src} alt="gallery preview" className="w-16 h-16 object-cover border" />
+                                    <img
+                                        key={i}
+                                        src={src}
+                                        alt="gallery preview"
+                                        className="w-16 h-16 object-cover border"
+                                    />
                                 ))}
                             </div>
                         </Link>
@@ -120,6 +143,7 @@ export default async function PostPage({ params }: { params: Params }) {
 
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--subt)]">
                         {created && <span className="retro-label">{created}</span>}
+
                         {galleryId && (
                             <span>
                 <span className="retro-label mr-1">Gallery:</span>
@@ -128,6 +152,7 @@ export default async function PostPage({ params }: { params: Params }) {
                 </Link>
               </span>
                         )}
+
                         {tags.length > 0 && (
                             <span className="flex flex-wrap gap-1">
                 {tags.map((t) => (

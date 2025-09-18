@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
             { new: true, upsert: true }
         ).lean<{ _id: Types.ObjectId }>();
 
+        if (!familyTag?._id) {
+            // Extremely unlikely with upsert+new, but satisfies TS and protects at runtime
+            return NextResponse.json({ error: "Failed to ensure family tag" }, { status: 500 });
+        }
+
         const slug = slugify(name);
         const dir = ensureGalleryDir(slug);
         const urls: string[] = [];
@@ -74,14 +79,17 @@ export async function POST(req: NextRequest) {
             name,
             slug,
             images: urls,
-            tags: [familyTag._id],
+            tags: [familyTag._id],        // <- now safe
             eventMonth: monthNum,
             eventYear: yearNum,
             createdAt: new Date(),
             updatedAt: new Date(),
         });
 
-        return NextResponse.json({ _id: doc._id, name: doc.name, slug: doc.slug, images: doc.images }, { status: 201 });
+        return NextResponse.json(
+            { _id: doc._id, name: doc.name, slug: doc.slug, images: doc.images },
+            { status: 201 }
+        );
     } catch (e) {
         console.error(e);
         return NextResponse.json({ error: "Create failed" }, { status: 500 });
