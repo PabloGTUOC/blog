@@ -4,6 +4,8 @@ import Entry from "@/models/Entry";
 import { Card } from "@/components/ui/Card";
 import { Types } from "mongoose";
 
+export const dynamic = "force-dynamic";
+
 type LeanEntry = {
     _id: Types.ObjectId;
     title: string;
