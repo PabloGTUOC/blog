@@ -6,6 +6,7 @@ import { Types } from "mongoose";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import GalleryViewer from "@/components/GalleryViewer";
 
 // Types
 type Params = Promise<{ id: string }>;
@@ -85,12 +86,7 @@ export default async function GalleryPage({ params }: { params: Params }) {
             )}
 
             {Array.isArray(gallery.images) && gallery.images.length > 0 ? (
-                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    {gallery.images.map((src, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={src} alt={`img-${i}`} className="w-full h-auto object-cover rounded" loading="lazy" />
-                    ))}
-                </div>
+                <GalleryViewer images={gallery.images} thumbRatio="square" />
             ) : (
                 <div className="text-sm text-[var(--subt)]">No images yet.</div>
             )}
