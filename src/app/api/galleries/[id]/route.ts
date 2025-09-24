@@ -4,7 +4,7 @@ import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import { isValidObjectId } from "mongoose";
 import { slugify } from "@/lib/slug";
-import { renameGalleryFolder } from "@/lib/fs-server";
+import { PUBLIC_DIR, renameGalleryFolder } from "@/lib/fs-server";
 import { rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -93,10 +93,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     const diagnostics: any = { slug: g.slug, attempts: [] };
 
     if (delFiles) {
-        // 1) Primary expected folder: /public/galleries/<slug>
+        // 1) Primary expected folder on disk
         const tryDirs = new Set<string>();
         if (g.slug) {
-            tryDirs.add(join(process.cwd(), "public", "galleries", g.slug));
+            tryDirs.add(join(PUBLIC_DIR, "galleries", g.slug));
         }
 
         // 2) Any dirs derivable from stored URLs (covers legacy paths or typos)
@@ -105,7 +105,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
             // normalize URL like /galleries/slug/file.jpg or /uploads/whatever
             const clean = u.split("?")[0].split("#")[0];
             if (clean.startsWith("/")) {
-                const abs = join(process.cwd(), "public", clean);
+                const rel = clean.replace(/^\/+/u, "");
+                const abs = join(PUBLIC_DIR, rel);
                 // delete the file's parent directory (the gallery folder)
                 tryDirs.add(dirname(abs));
             }
