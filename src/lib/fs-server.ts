@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, renameSync, copyFileSync, createWriteStream } fr
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 
-const PUBLIC_DIR = join(process.cwd(), "public");
+export const PUBLIC_DIR = "/root/projects/blog-uploads";
 export const GALLERIES_DIR = join(PUBLIC_DIR, "galleries");
+export const UPLOADS_DIR = join(PUBLIC_DIR, "uploads");
 
 export function ensureDir(path: string) {
     if (!existsSync(path)) mkdirSync(path, { recursive: true });

@@ -3,6 +3,7 @@ import { unlink } from 'fs/promises';
 import path from 'path';
 import connect from '@/lib/mongodb';
 import Entry from '@/models/Entry';
+import { PUBLIC_DIR, UPLOADS_DIR } from '@/lib/fs-server';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -43,9 +44,9 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const entry = await Entry.findByIdAndDelete(id);
 
     if (entry?.imageUrl && typeof entry.imageUrl === 'string' && entry.imageUrl.startsWith('/uploads/')) {
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        const uploadsDir = UPLOADS_DIR;
         const relativePath = entry.imageUrl.replace(/^\/+/u, '');
-        const filePath = path.resolve(process.cwd(), 'public', relativePath);
+        const filePath = path.resolve(PUBLIC_DIR, relativePath);
         if (filePath.startsWith(uploadsDir)) {
             try {
                 await unlink(filePath);
