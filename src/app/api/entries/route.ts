@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connect from '@/lib/mongodb';
 import Entry from '@/models/Entry';
+import { Types } from 'mongoose';
 
 export async function GET(req: Request) {
     await connect();
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ message: 'Invalid publishedAt' }, { status: 400 });
     }
 
-    const entry = await Entry.create({
+    const payload: Record<string, unknown> = {
         title: typeof data.title === 'string' ? data.title : '',
         caption: typeof data.caption === 'string' ? data.caption : '',
         imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : '',
@@ -59,7 +60,13 @@ export async function POST(req: Request) {
                   .map((value) => (typeof value === 'string' ? value : null))
                   .filter((value): value is string => Boolean(value))
             : [],
-    });
+    };
+
+    if (typeof data._id === 'string' && Types.ObjectId.isValid(data._id)) {
+        payload._id = new Types.ObjectId(data._id);
+    }
+
+    const entry = await Entry.create(payload);
 
     return NextResponse.json(entry, { status: 201 });
 }

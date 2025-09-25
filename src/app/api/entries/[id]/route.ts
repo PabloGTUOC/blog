@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { unlink } from 'fs/promises';
+import { rm, unlink } from 'fs/promises';
 import path from 'path';
 import connect from '@/lib/mongodb';
 import Entry from '@/models/Entry';
-import { PUBLIC_DIR, UPLOADS_DIR } from '@/lib/fs-server';
+import { ENTRIES_DIR, PUBLIC_DIR } from '@/lib/fs-server';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -43,11 +43,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const { id } = await params;
     const entry = await Entry.findByIdAndDelete(id);
 
-    if (entry?.imageUrl && typeof entry.imageUrl === 'string' && entry.imageUrl.startsWith('/uploads/')) {
-        const uploadsDir = UPLOADS_DIR;
-        const relativePath = entry.imageUrl.replace(/^\/+/u, '');
+    if (entry?.imageUrl && typeof entry.imageUrl === 'string') {
+        const clean = entry.imageUrl.split('?')[0]?.split('#')[0] ?? '';
+        const relativePath = clean.replace(/^\/+/u, '');
         const filePath = path.resolve(PUBLIC_DIR, relativePath);
-        if (filePath.startsWith(uploadsDir)) {
+        const legacyUploadsDir = path.join(PUBLIC_DIR, 'uploads');
+        if (filePath.startsWith(ENTRIES_DIR) || filePath.startsWith(legacyUploadsDir)) {
             try {
                 await unlink(filePath);
             } catch (error) {
@@ -56,6 +57,15 @@ export async function DELETE(_req: Request, { params }: Ctx) {
                     console.error('Failed to remove entry image', error);
                 }
             }
+        }
+    }
+
+    try {
+        await rm(path.join(ENTRIES_DIR, id), { recursive: true, force: true });
+    } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code !== 'ENOENT') {
+            console.error('Failed to remove entry directory', error);
         }
     }
 
