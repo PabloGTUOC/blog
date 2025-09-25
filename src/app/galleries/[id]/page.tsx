@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import GalleryViewer from "@/components/GalleryViewer";
+import { resolveGalleryImageUrl } from "@/lib/galleryPaths";
+import { ensureGalleryDir } from "@/lib/fs-server";
 
 // Types
 type Params = Promise<{ id: string }>;
@@ -14,6 +16,7 @@ type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 type LeanGallery = {
     _id: Types.ObjectId;
     name: string;
+    slug?: string;
     description?: string;
     images: string[];
     tags?: (Types.ObjectId | LeanTag)[];
@@ -36,17 +39,35 @@ export default async function GalleryPage({ params }: { params: Params }) {
     await connect();
 
     const gallery = await Gallery.findById(id)
-        .select("name description images tags eventMonth eventYear createdAt")
+        .select("name slug description images tags eventMonth eventYear createdAt")
         .populate("tags", "name color")
         .lean<Omit<LeanGallery, "tags"> & { tags?: LeanTag[] }>(); // <- populated shape
 
     if (!gallery) return notFound();
+
+    const galleryName =
+        typeof gallery.name === "string" && gallery.name.trim() ? gallery.name.trim() : gallery._id.toString();
+
+    try {
+        const legacyKeys = [gallery.slug, gallery._id.toString()].filter(
+            (key): key is string => typeof key === "string" && key.trim() !== ""
+        );
+        ensureGalleryDir(galleryName, legacyKeys);
+    } catch (err) {
+        console.error("Failed to ensure gallery directory", err);
+    }
 
     const tags = (gallery.tags ?? []).map((t) => ({
         id: t._id.toString(),
         name: t.name,
         color: t.color,
     }));
+
+    const imageUrls = Array.isArray(gallery.images)
+        ? gallery.images
+              .filter((img): img is string => typeof img === "string" && img.trim() !== "")
+              .map((img) => resolveGalleryImageUrl(galleryName, img))
+        : [];
 
     return (
         <div className="p-4 space-y-4">
@@ -85,8 +106,8 @@ export default async function GalleryPage({ params }: { params: Params }) {
                 <Card className="p-3 whitespace-pre-wrap">{gallery.description}</Card>
             )}
 
-            {Array.isArray(gallery.images) && gallery.images.length > 0 ? (
-                <GalleryViewer images={gallery.images} thumbRatio="square" />
+            {imageUrls.length > 0 ? (
+                <GalleryViewer images={imageUrls} thumbRatio="square" />
             ) : (
                 <div className="text-sm text-[var(--subt)]">No images yet.</div>
             )}

@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import { isValidObjectId } from "mongoose";
-import { join, extname, basename } from "node:path";
-import { ensureGalleryDir, writeBufferFile, uniqueName } from "@/lib/fs-server";
+import { join } from "node:path";
+import { ensureGalleryDir, writeBufferFile } from "@/lib/fs-server";
 import { slugify } from "@/lib/slug";
+import { resolveGalleryImageUrl, sanitizeGalleryFileName } from "@/lib/galleryPaths";
 
 export const runtime = "nodejs";
 
@@ -64,18 +65,16 @@ export async function POST(req: NextRequest) {
         const files = form.getAll("files").filter((f): f is File => f instanceof File);
 
         const slug = slugify(name);
-        const dir = ensureGalleryDir(slug);
+        const dir = ensureGalleryDir(name);
 
         const urls: string[] = [];
         for (const f of files) {
             const ab = await f.arrayBuffer();
             const buf = Buffer.from(ab);
-            const ext = (extname(f.name) || ".jpg").replace(".", "");
-            const base = basename(f.name, "." + ext);
-            const filename = uniqueName(base, ext);
+            const filename = sanitizeGalleryFileName(f.name);
             const dest = join(dir, filename);
-            await writeBufferFile(dest, buf);
-            urls.push(`/galleries/${slug}/${filename}`);
+            await writeBufferFile(dest, buf, { overwrite: true });
+            urls.push(resolveGalleryImageUrl(name, filename));
         }
 
         const doc = await Gallery.create({
