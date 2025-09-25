@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, renameSync, copyFileSync, createWriteStream, chm
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 
-export const PUBLIC_DIR = "/root/projects/blog-uploads";
+export const PUBLIC_DIR = "/var/www/blog-uploads";
 export const GALLERIES_DIR = join(PUBLIC_DIR, "galleries");
 export const ENTRIES_DIR = join(PUBLIC_DIR, "entries");
 export const BLOGS_DIR = join(PUBLIC_DIR, "blogs");
