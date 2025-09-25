@@ -3,7 +3,8 @@ import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 
 export const PUBLIC_DIR = "/var/www/blog-uploads";
-export const GALLERIES_DIR = join(PUBLIC_DIR, "galleries");
+export const UPLOADS_DIR = join(PUBLIC_DIR, "uploads");
+export const LEGACY_GALLERIES_DIR = join(PUBLIC_DIR, "galleries");
 export const ENTRIES_DIR = join(PUBLIC_DIR, "entries");
 export const BLOGS_DIR = join(PUBLIC_DIR, "blogs");
 
@@ -30,19 +31,25 @@ export function ensureGalleryDir(galleryName: string, legacyKeys: string[] = [])
         throw new Error("ensureGalleryDir: gallery name cannot include path separators");
     }
 
-    ensureDir(GALLERIES_DIR);
-    const dir = join(GALLERIES_DIR, trimmed);
+    ensureDir(UPLOADS_DIR);
+    const dir = join(UPLOADS_DIR, trimmed);
 
     if (!existsSync(dir)) {
-        for (const legacy of legacyKeys) {
-            if (!legacy || typeof legacy !== "string") continue;
-            const candidate = join(GALLERIES_DIR, legacy);
-            if (!existsSync(candidate)) continue;
-            try {
-                renameSync(candidate, dir);
-                break;
-            } catch {
-                // fallback to creating the folder below
+        const candidateKeys = [trimmed, ...legacyKeys].filter(
+            (key): key is string => typeof key === "string" && key.trim() !== ""
+        );
+        const searchBases = [UPLOADS_DIR, LEGACY_GALLERIES_DIR];
+
+        outer: for (const key of candidateKeys) {
+            for (const base of searchBases) {
+                const candidate = join(base, key.trim());
+                if (!existsSync(candidate) || candidate === dir) continue;
+                try {
+                    renameSync(candidate, dir);
+                    break outer;
+                } catch {
+                    // fallback to creating the folder below
+                }
             }
         }
     }
@@ -111,25 +118,29 @@ export function renameGalleryFolder(oldName: string, newName: string, legacyKeys
         throw new Error("renameGalleryFolder: new name cannot include path separators");
     }
 
-    ensureDir(GALLERIES_DIR);
-    const target = join(GALLERIES_DIR, trimmedNew);
+    ensureDir(UPLOADS_DIR);
+    const target = join(UPLOADS_DIR, trimmedNew);
     ensureDir(dirname(target));
 
     const candidates = [oldName, ...legacyKeys].filter(
         (name): name is string => typeof name === "string" && name.trim() !== ""
     );
 
+    const searchBases = [UPLOADS_DIR, LEGACY_GALLERIES_DIR];
+
     for (const candidateName of candidates) {
         const trimmedCandidate = candidateName.trim();
         if (!trimmedCandidate) continue;
-        const candidatePath = join(GALLERIES_DIR, trimmedCandidate);
-        if (!existsSync(candidatePath)) continue;
-        if (candidatePath === target) return;
-        try {
-            renameSync(candidatePath, target);
-            return;
-        } catch {
-            // try the next candidate
+        for (const base of searchBases) {
+            const candidatePath = join(base, trimmedCandidate);
+            if (!existsSync(candidatePath)) continue;
+            if (candidatePath === target) return;
+            try {
+                renameSync(candidatePath, target);
+                return;
+            } catch {
+                // try the next candidate path/base combination
+            }
         }
     }
 

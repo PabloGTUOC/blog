@@ -101,7 +101,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
             (key): key is string => typeof key === "string" && key.trim() !== ""
         );
         for (const key of possibleKeys) {
-            tryDirs.add(join(PUBLIC_DIR, "galleries", key.trim()));
+            const trimmed = key.trim();
+            tryDirs.add(join(PUBLIC_DIR, "uploads", trimmed));
+            tryDirs.add(join(PUBLIC_DIR, "galleries", trimmed));
         }
 
         // 2) Any dirs derivable from stored URLs (covers legacy paths or typos)
