@@ -52,7 +52,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         urls.push(resolveGalleryImageUrl(galleryName, filename));
     }
 
-    g.images = [...(g.images ?? []).map((img) => resolveGalleryImageUrl(galleryName, img)), ...urls];
+    g.images = [
+        ...(g.images ?? []).map((img: string) => resolveGalleryImageUrl(galleryName, img)),
+        ...urls,
+    ];
     g.updatedAt = new Date();
     await g.save();
 
