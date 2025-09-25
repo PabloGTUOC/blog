@@ -46,13 +46,13 @@ function buildGalleryQuery(slugOrId: string) {
                     { slug: trimmed },
                     { _id: new Types.ObjectId(trimmed) },
                 ],
-            } as const;
+            };
         } catch {
             // fall through to slug lookup if ObjectId construction fails
         }
     }
 
-    return { slug: trimmed } as const;
+    return { slug: trimmed };
 }
 
 export default async function GalleryPage({ params }: { params: Params }) {
