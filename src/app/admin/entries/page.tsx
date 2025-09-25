@@ -201,6 +201,8 @@ export default function ManageEntriesPage() {
                                 <Uploader
                                     multiple={false}
                                     accept="image/*"
+                                    targetType="entries"
+                                    targetId={row._id}
                                     onUploaded={(urls) =>
                                         setEdits((m) => ({
                                             ...m,

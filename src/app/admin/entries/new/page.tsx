@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -28,6 +28,7 @@ export default function NewEntryPage() {
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState<string | null>(null);
     const [allTags, setAllTags] = useState<TagOption[]>([]);
+    const [entryId, setEntryId] = useState<string | null>(null);
 
     useEffect(() => {
         (async () => {
@@ -59,6 +60,29 @@ export default function NewEntryPage() {
         })();
     }, []);
 
+    const loadEntryId = useCallback(async () => {
+        let previous: string | null = null;
+        setEntryId((prev) => {
+            previous = prev;
+            return null;
+        });
+        try {
+            const res = await fetch("/api/entries/new-id");
+            if (!res.ok) throw new Error("Failed to reserve entry id");
+            const data: unknown = await res.json();
+            const id = typeof (data as { id?: unknown }).id === "string" ? (data as { id: string }).id : null;
+            if (!id) throw new Error("Invalid id response");
+            setEntryId(id);
+        } catch (error) {
+            console.error("Failed to load entry id", error);
+            setEntryId(previous);
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadEntryId();
+    }, [loadEntryId]);
+
     const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setSaving(true);
@@ -70,6 +94,7 @@ export default function NewEntryPage() {
                 imageUrl: entry.imageUrl,
                 tags: entry.tags,
             };
+            if (entryId) payload._id = entryId;
             if (entry.date) {
                 payload.publishedAt = new Date(`${entry.date}T00:00:00`).toISOString();
             }
@@ -90,6 +115,7 @@ export default function NewEntryPage() {
 
             setMsg("Saved!");
             setEntry({ title: "", caption: "", imageUrl: "", date: today, tags: [] });
+            await loadEntryId();
         } catch (error: unknown) {
             setMsg(error instanceof Error ? error.message : "Error");
         } finally {
@@ -119,10 +145,16 @@ export default function NewEntryPage() {
                     <Uploader
                         multiple={false}
                         accept="image/*"
+                        targetType="entries"
+                        targetId={entryId ?? undefined}
+                        disabled={!entryId}
                         onUploaded={(urls) =>
                             setEntry((v) => ({ ...v, imageUrl: urls[0] ?? v.imageUrl }))
                         }
                     />
+                    {!entryId && (
+                        <div className="text-xs text-[var(--subt)]">Preparing upload destination…</div>
+                    )}
 
                     {entry.imageUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -172,7 +204,10 @@ export default function NewEntryPage() {
                         </Button>
                         <Button
                             type="button"
-                            onClick={() => setEntry({ title: "", caption: "", imageUrl: "", date: today, tags: [] })}
+                            onClick={() => {
+                                setEntry({ title: "", caption: "", imageUrl: "", date: today, tags: [] });
+                                void loadEntryId();
+                            }}
                         >
                             Clear
                         </Button>

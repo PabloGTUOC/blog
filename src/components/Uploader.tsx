@@ -9,6 +9,9 @@ interface UploaderProps {
     to?: string;                 // <— where to POST (default /api/upload)
     accept?: string;             // e.g. "image/jpeg,image/png"
     multiple?: boolean;          // default true
+    disabled?: boolean;
+    targetType?: "entries" | "blogs";
+    targetId?: string;
 }
 
 export default function Uploader({
@@ -17,13 +20,23 @@ export default function Uploader({
                                      to = "/api/upload",
                                      accept = "image/*",
                                      multiple = true,
+                                     disabled = false,
+                                     targetType,
+                                     targetId,
                                  }: UploaderProps) {
     const handleChange = async (e: ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files ?? []);
         if (files.length === 0) return;
+        if (targetType && !targetId) {
+            console.error("Uploader: targetId is required when targetType is provided");
+            e.target.value = "";
+            return;
+        }
 
         const formData = new FormData();
         files.forEach((file) => formData.append("files", file)); // key must be "files"
+        if (targetType) formData.append("targetType", targetType);
+        if (targetId) formData.append("targetId", targetId);
 
         try {
             const res = await fetch(to, { method: "POST", body: formData });
@@ -44,6 +57,7 @@ export default function Uploader({
             accept={accept}
             onChange={handleChange}
             className={className}
+            disabled={disabled}
         />
     );
 }
