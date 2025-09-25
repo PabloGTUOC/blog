@@ -2,12 +2,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import Gallery from "@/models/Gallery";
 import Tag from "@/models/Tag";
-import { ensureGalleryDir, writeBufferFile, uniqueName } from "@/lib/fs-server";
+import { ensureGalleryDir, writeBufferFile } from "@/lib/fs-server";
 import { slugify } from "@/lib/slug";
-import { join, extname, basename } from "node:path";
+import { join } from "node:path";
 import { Types } from "mongoose";
 import { getApprovedFamilyUser } from "@/lib/familyAuth";
 import connect from "@/lib/mongodb";
+import { resolveGalleryImageUrl, sanitizeGalleryFileName } from "@/lib/galleryPaths";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!g) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     if (!g.slug || typeof g.slug !== "string" || g.slug.trim() === "") {
-        const fallbackName = typeof g.name === "string" && g.name.trim() ? g.name : String(g._id);
+        const fallbackName = typeof g.name === "string" && g.name.trim() ? g.name : g._id.toString();
         g.slug = slugify(fallbackName);
         await g.save();
     }
@@ -37,21 +38,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const files = form.getAll("files").filter((f): f is File => f instanceof File);
     if (!files.length) return NextResponse.json({ error: "No files" }, { status: 400 });
 
-    const dir = ensureGalleryDir(g.slug);
+    const galleryName =
+        typeof g.name === "string" && g.name.trim() ? g.name.trim() : g.slug || g._id.toString();
+    const dir = ensureGalleryDir(galleryName, [g.slug, g._id.toString()]);
     const urls: string[] = [];
 
     for (const f of files) {
         const ab = await f.arrayBuffer();
         const buf = Buffer.from(ab);
-        const ext = (extname(f.name) || ".jpg").replace(".", "");
-        const base = basename(f.name, "." + ext);
-        const filename = uniqueName(base, ext);
+        const filename = sanitizeGalleryFileName(f.name);
         const dest = join(dir, filename);
-        await writeBufferFile(dest, buf);
-        urls.push(`/galleries/${g.slug}/${filename}`);
+        await writeBufferFile(dest, buf, { overwrite: true });
+        urls.push(resolveGalleryImageUrl(galleryName, filename));
     }
 
-    g.images.push(...urls);
+    g.images = [...(g.images ?? []).map((img) => resolveGalleryImageUrl(galleryName, img)), ...urls];
     g.updatedAt = new Date();
     await g.save();
 

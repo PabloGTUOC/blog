@@ -18,12 +18,35 @@ export function ensureDir(path: string) {
     }
 }
 
-export function ensureGalleryDir(slug: string) {
-    if (!slug || typeof slug !== "string") {
-        throw new Error("ensureGalleryDir: slug is missing");
+export function ensureGalleryDir(galleryName: string, legacyKeys: string[] = []) {
+    if (!galleryName || typeof galleryName !== "string") {
+        throw new Error("ensureGalleryDir: gallery name is missing");
     }
+    const trimmed = galleryName.trim();
+    if (!trimmed) {
+        throw new Error("ensureGalleryDir: gallery name is empty");
+    }
+    if (/[\\/]/u.test(trimmed)) {
+        throw new Error("ensureGalleryDir: gallery name cannot include path separators");
+    }
+
     ensureDir(GALLERIES_DIR);
-    const dir = join(GALLERIES_DIR, slug);
+    const dir = join(GALLERIES_DIR, trimmed);
+
+    if (!existsSync(dir)) {
+        for (const legacy of legacyKeys) {
+            if (!legacy || typeof legacy !== "string") continue;
+            const candidate = join(GALLERIES_DIR, legacy);
+            if (!existsSync(candidate)) continue;
+            try {
+                renameSync(candidate, dir);
+                break;
+            } catch {
+                // fallback to creating the folder below
+            }
+        }
+    }
+
     ensureDir(dir);
     return dir;
 }
@@ -48,10 +71,11 @@ export function ensureBlogDir(id: string) {
     return dir;
 }
 
-export function writeBufferFile(destPath: string, buffer: Buffer) {
+export function writeBufferFile(destPath: string, buffer: Buffer, options?: { overwrite?: boolean }) {
+    const overwrite = options?.overwrite ?? false;
     ensureDir(dirname(destPath));
     return new Promise<void>((resolve, reject) => {
-        const ws = createWriteStream(destPath, { flags: "wx", mode: 0o644 });
+        const ws = createWriteStream(destPath, { flags: overwrite ? "w" : "wx", mode: 0o644 });
         ws.on("error", reject);
         ws.on("finish", () => resolve());
         ws.end(buffer);
@@ -75,13 +99,39 @@ export function copyLocalFile(srcAbs: string, destAbs: string) {
     }
 }
 
-export function renameGalleryFolder(oldSlug: string, newSlug: string) {
-    const from = join(GALLERIES_DIR, oldSlug);
-    const to = join(GALLERIES_DIR, newSlug);
-    if (existsSync(from)) {
-        ensureDir(dirname(to));
-        renameSync(from, to);
-    } else {
-        ensureDir(to);
+export function renameGalleryFolder(oldName: string, newName: string, legacyKeys: string[] = []) {
+    if (!newName || typeof newName !== "string") {
+        throw new Error("renameGalleryFolder: new name is missing");
     }
+    const trimmedNew = newName.trim();
+    if (!trimmedNew) {
+        throw new Error("renameGalleryFolder: new name is empty");
+    }
+    if (/[\\/]/u.test(trimmedNew)) {
+        throw new Error("renameGalleryFolder: new name cannot include path separators");
+    }
+
+    ensureDir(GALLERIES_DIR);
+    const target = join(GALLERIES_DIR, trimmedNew);
+    ensureDir(dirname(target));
+
+    const candidates = [oldName, ...legacyKeys].filter(
+        (name): name is string => typeof name === "string" && name.trim() !== ""
+    );
+
+    for (const candidateName of candidates) {
+        const trimmedCandidate = candidateName.trim();
+        if (!trimmedCandidate) continue;
+        const candidatePath = join(GALLERIES_DIR, trimmedCandidate);
+        if (!existsSync(candidatePath)) continue;
+        if (candidatePath === target) return;
+        try {
+            renameSync(candidatePath, target);
+            return;
+        } catch {
+            // try the next candidate
+        }
+    }
+
+    ensureDir(target);
 }

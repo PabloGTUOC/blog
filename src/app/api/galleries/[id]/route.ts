@@ -8,6 +8,7 @@ import { PUBLIC_DIR, renameGalleryFolder } from "@/lib/fs-server";
 import { rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { resolveGalleryImageUrl } from "@/lib/galleryPaths";
 
 export const runtime = "nodejs";
 
@@ -34,13 +35,13 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     // rename / slug
     if (typeof payload.name === "string" && payload.name.trim() && payload.name !== g.name) {
         const newSlug = slugify(payload.name);
+        const newName = payload.name.trim();
+        const currentName = typeof g.name === "string" && g.name.trim() ? g.name.trim() : g.slug;
         try {
-            renameGalleryFolder(g.slug, newSlug);
-            g.images = (g.images || []).map((u: string) =>
-                u.replace(`/galleries/${g.slug}/`, `/galleries/${newSlug}/`)
-            );
+            renameGalleryFolder(currentName || g._id.toString(), newName, [g.slug, g._id.toString()]);
+            g.images = (g.images || []).map((u: string) => resolveGalleryImageUrl(newName, u));
             g.slug = newSlug;
-            g.name = payload.name.trim();
+            g.name = newName;
         } catch (e) {
             console.error("renameGalleryFolder failed:", e);
             return NextResponse.json({ error: "Rename failed" }, { status: 500 });
@@ -53,7 +54,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
         if (payload.images.some((u: string) => u.startsWith("blob:") || u.startsWith("file:"))) {
             return NextResponse.json({ error: "Images must be server URLs" }, { status: 400 });
         }
-        g.images = payload.images;
+        const currentName = typeof g.name === "string" && g.name.trim() ? g.name.trim() : g.slug || g._id.toString();
+        g.images = payload.images.map((img: string) => resolveGalleryImageUrl(currentName, img));
     }
     if (Array.isArray(payload.tags)) g.tags = payload.tags;
 
@@ -90,13 +92,16 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     const { searchParams } = new URL(req.url);
     const delFiles = searchParams.get("deleteFiles") === "1";
 
-    const diagnostics: any = { slug: g.slug, attempts: [] };
+    const diagnostics: any = { slug: g.slug, name: g.name, attempts: [] };
 
     if (delFiles) {
         // 1) Primary expected folder on disk
         const tryDirs = new Set<string>();
-        if (g.slug) {
-            tryDirs.add(join(PUBLIC_DIR, "galleries", g.slug));
+        const possibleKeys = [g.name, g.slug, g._id.toString()].filter(
+            (key): key is string => typeof key === "string" && key.trim() !== ""
+        );
+        for (const key of possibleKeys) {
+            tryDirs.add(join(PUBLIC_DIR, "galleries", key.trim()));
         }
 
         // 2) Any dirs derivable from stored URLs (covers legacy paths or typos)
