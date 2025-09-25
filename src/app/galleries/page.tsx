@@ -12,6 +12,7 @@ type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 
 type LeanGalleryCard = {
     _id: Types.ObjectId;
+    slug?: string;
     name: string;
     images: string[];
     eventMonth?: number;
@@ -85,7 +86,7 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
     // Query galleries (NOTE the awaited find + typed lean)
     const raw = await Gallery.find(
         criteria,
-        { name: 1, images: 1, tags: 1, eventMonth: 1, eventYear: 1, createdAt: 1 }
+        { name: 1, slug: 1, images: 1, tags: 1, eventMonth: 1, eventYear: 1, createdAt: 1 }
     )
         .sort({ eventYear: -1, eventMonth: -1, createdAt: -1 })
         .limit(60)
@@ -95,6 +96,7 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
     const cards = raw.map((g) => {
         const id = g._id.toString();
         const thumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
+        const slug = typeof g.slug === "string" && g.slug.trim() ? g.slug.trim() : undefined;
         const tags = (g.tags ?? []).map((t) => ({
             id: t._id.toString(),
             name: t.name,
@@ -102,9 +104,10 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
         }));
         return {
             id,
+            slug,
             name: g.name ?? "(untitled)",
             thumb,
-            href: `/galleries/${id}`,
+            href: `/galleries/${slug ?? id}`,
             m: g.eventMonth,
             y: g.eventYear,
             tags,

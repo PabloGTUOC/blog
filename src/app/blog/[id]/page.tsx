@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 type Params = Promise<{ id: string }>;
 
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
-type LeanGallery = { _id: Types.ObjectId; name: string; images?: string[] };
+type LeanGallery = { _id: Types.ObjectId; slug?: string; name: string; images?: string[] };
 
 type LeanPost = {
     _id: Types.ObjectId;
@@ -79,7 +79,7 @@ export default async function PostPage({ params }: { params: Params }) {
 
     const post = await Post.findById(id)
         .select("title content gallery tags createdAt")
-        .populate("gallery", "name images")
+        .populate("gallery", "name slug images")
         .populate("tags", "name color")
         .lean<LeanPost>();
 
@@ -88,6 +88,8 @@ export default async function PostPage({ params }: { params: Params }) {
     // Normalize gallery
     const gallery = isLeanGallery(post.gallery) ? post.gallery : null;
     const galleryId = gallery?._id?.toString?.();
+    const gallerySlug = typeof gallery?.slug === "string" ? gallery.slug.trim() : "";
+    const galleryPath = gallerySlug ? gallerySlug : galleryId;
     const galleryName = gallery?.name ?? null;
     const galleryImages = Array.isArray(gallery?.images) ? gallery.images : [];
 
@@ -125,8 +127,8 @@ export default async function PostPage({ params }: { params: Params }) {
                         {post.title}
                     </h1>
 
-                    {galleryId && galleryImages.length > 0 && (
-                        <Link href={`/galleries/${galleryId}`} className="mt-2 block">
+                    {galleryPath && galleryImages.length > 0 && (
+                        <Link href={`/galleries/${galleryPath}`} className="mt-2 block">
                             <div className="flex gap-2">
                                 {galleryImages.slice(0, 4).map((src, i) => (
                                     // eslint-disable-next-line @next/next/no-img-element
@@ -144,10 +146,10 @@ export default async function PostPage({ params }: { params: Params }) {
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--subt)]">
                         {created && <span className="retro-label">{created}</span>}
 
-                        {galleryId && (
+                        {galleryPath && (
                             <span>
                 <span className="retro-label mr-1">Gallery:</span>
-                <Link href={`/galleries/${galleryId}`} className="text-[var(--accent)] underline">
+                <Link href={`/galleries/${galleryPath}`} className="text-[var(--accent)] underline">
                   {galleryName ?? "View gallery"}
                 </Link>
               </span>

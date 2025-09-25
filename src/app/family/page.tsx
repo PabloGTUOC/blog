@@ -87,16 +87,18 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
 
     const raw = await Gallery.find(
         criteria,
-        { name: 1, images: 1, tags: 1, eventMonth: 1, eventYear: 1, createdAt: 1 }
+        { name: 1, slug: 1, images: 1, tags: 1, eventMonth: 1, eventYear: 1, createdAt: 1 }
     )
         .sort({ eventYear: -1, eventMonth: -1, createdAt: -1 })
         .limit(60)
         .populate("tags", "name color")
-        .lean<{ _id: Types.ObjectId; name: string; images: string[]; eventMonth?: number; eventYear?: number; tags?: (Types.ObjectId | LeanTag)[] }[]>();
+        .lean<{ _id: Types.ObjectId; slug?: string; name: string; images: string[]; eventMonth?: number; eventYear?: number; tags?: (Types.ObjectId | LeanTag)[] }[]>();
 
     const cards = raw.map((g) => {
         const id = g._id.toString();
         const thumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
+        const rawSlug = typeof g.slug === "string" ? g.slug.trim() : "";
+        const slug = rawSlug ? rawSlug : undefined;
 
         // Narrow tags safely (ObjectId vs populated)
         const tags =
@@ -110,9 +112,10 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
 
         return {
             id,
+            slug,
             name: g.name ?? "(untitled)",
             thumb,
-            href: `/galleries/${id}`,
+            href: `/galleries/${slug ?? id}`,
             m: g.eventMonth,
             y: g.eventYear,
             tags,
