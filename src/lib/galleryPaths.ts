@@ -21,7 +21,7 @@ export function resolveGalleryImageUrl(galleryName: string, value: string) {
     const trimmedName = galleryName.trim();
     if (!trimmedName) return value;
 
-    const basePath = `/galleries/${trimmedName}`;
+    const basePath = `/uploads/${trimmedName}`;
 
     if (typeof value !== "string") {
         return basePath;
@@ -36,9 +36,9 @@ export function resolveGalleryImageUrl(galleryName: string, value: string) {
         return trimmedValue;
     }
 
-    const galleriesMatch = trimmedValue.match(/^\/galleries\/[^/]+\/(.+)$/u);
-    if (galleriesMatch) {
-        return `${basePath}/${galleriesMatch[1]}`;
+    const uploadsMatch = trimmedValue.match(/^\/(?:uploads|galleries)\/[^/]+\/(.+)$/u);
+    if (uploadsMatch) {
+        return `${basePath}/${uploadsMatch[1]}`;
     }
 
     const filePart = trimmedValue.split(/[/\\]/u).pop() ?? trimmedValue;

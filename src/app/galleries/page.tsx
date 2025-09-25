@@ -6,6 +6,7 @@ import Tag from "@/models/Tag";
 import { Card } from "@/components/ui/Card";
 import { Types } from "mongoose";
 import TagFilterDropdown from "@/components/TagFilterDropdown";
+import { resolveGalleryImageUrl } from "@/lib/galleryPaths";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
@@ -95,8 +96,13 @@ export default async function GalleriesIndex({ searchParams }: { searchParams: S
 
     const cards = raw.map((g) => {
         const id = g._id.toString();
-        const thumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
         const slug = typeof g.slug === "string" && g.slug.trim() ? g.slug.trim() : undefined;
+        const galleryName =
+            typeof g.name === "string" && g.name.trim()
+                ? g.name.trim()
+                : slug || id;
+        const rawThumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
+        const thumb = rawThumb ? resolveGalleryImageUrl(galleryName, rawThumb) : "";
         const tags = (g.tags ?? []).map((t) => ({
             id: t._id.toString(),
             name: t.name,

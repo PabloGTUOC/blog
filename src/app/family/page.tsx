@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import FamilyLogin from "@/components/FamilyLogin";
 import { Types } from "mongoose";
 import { getApprovedFamilyUser } from "@/lib/familyAuth";
+import { resolveGalleryImageUrl } from "@/lib/galleryPaths";
 
 export const dynamic = "force-dynamic";
 
@@ -96,9 +97,14 @@ export default async function FamilyPage({ searchParams }: { searchParams: Searc
 
     const cards = raw.map((g) => {
         const id = g._id.toString();
-        const thumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
         const rawSlug = typeof g.slug === "string" ? g.slug.trim() : "";
         const slug = rawSlug ? rawSlug : undefined;
+        const galleryName =
+            typeof g.name === "string" && g.name.trim()
+                ? g.name.trim()
+                : slug || id;
+        const rawThumb = Array.isArray(g.images) && g.images.length > 0 ? g.images[0] : "";
+        const thumb = rawThumb ? resolveGalleryImageUrl(galleryName, rawThumb) : "";
 
         // Narrow tags safely (ObjectId vs populated)
         const tags =
