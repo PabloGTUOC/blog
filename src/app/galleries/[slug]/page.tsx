@@ -1,4 +1,4 @@
-// src/app/galleries/[id]/page.tsx
+// src/app/galleries/[slug]/page.tsx
 import connect from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
 import "@/models/Tag"; // ensure schema for populate
@@ -11,7 +11,7 @@ import { resolveGalleryImageUrl } from "@/lib/galleryPaths";
 import { ensureGalleryDir } from "@/lib/fs-server";
 
 // Types
-type Params = Promise<{ id: string }>;
+type Params = Promise<{ slug: string }>;
 type LeanTag = { _id: Types.ObjectId; name: string; color?: string };
 type LeanGallery = {
     _id: Types.ObjectId;
@@ -33,12 +33,36 @@ function formatEventDate(m?: number, y?: number) {
     return "";
 }
 
+function buildGalleryQuery(slugOrId: string) {
+    const trimmed = slugOrId.trim();
+    if (!trimmed) return { slug: trimmed };
+
+    // Support legacy numeric/objectId URLs by checking for a 24-char hex string.
+    const isObjectId = /^[a-f0-9]{24}$/iu.test(trimmed);
+    if (isObjectId) {
+        try {
+            return {
+                $or: [
+                    { slug: trimmed },
+                    { _id: new Types.ObjectId(trimmed) },
+                ],
+            } as const;
+        } catch {
+            // fall through to slug lookup if ObjectId construction fails
+        }
+    }
+
+    return { slug: trimmed } as const;
+}
+
 export default async function GalleryPage({ params }: { params: Params }) {
-    const { id } = await params;
+    const { slug } = await params;
+    const trimmedSlug = typeof slug === "string" ? slug.trim() : "";
+    if (!trimmedSlug) return notFound();
 
     await connect();
 
-    const gallery = await Gallery.findById(id)
+    const gallery = await Gallery.findOne(buildGalleryQuery(trimmedSlug))
         .select("name slug description images tags eventMonth eventYear createdAt")
         .populate("tags", "name color")
         .lean<Omit<LeanGallery, "tags"> & { tags?: LeanTag[] }>(); // <- populated shape
@@ -46,7 +70,7 @@ export default async function GalleryPage({ params }: { params: Params }) {
     if (!gallery) return notFound();
 
     const galleryName =
-        typeof gallery.name === "string" && gallery.name.trim() ? gallery.name.trim() : gallery._id.toString();
+        typeof gallery.name === "string" && gallery.name.trim() ? gallery.name.trim() : gallery.slug ?? gallery._id.toString();
 
     try {
         const legacyKeys = [gallery.slug, gallery._id.toString()].filter(
